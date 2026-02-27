@@ -194,8 +194,9 @@ class AIProcessor {
       const analysis = aiResult.analysis || {};
       const verdict = analysis.verdict || {};
 
-      // Calculate overall cost from breakdown or use extracted total
-      const calculatedCost = analysis.costBreakdown?.reduce((sum, item) => sum + (item.amount || 0), 0) ||
+      // Use strictly extracted overallCost from AI or fallback
+      const calculatedCost = analysis.overallCost ||
+        (analysis.costBreakdown?.reduce((sum, item) => sum + (item.amount || 0), 0)) ||
         job.metadata?.estimatedCost ||
         0;
 

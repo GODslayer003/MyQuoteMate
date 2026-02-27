@@ -405,14 +405,6 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
       content: displayResult?.questionsToAsk || [],
       isList: true
     },
-    comparison: {
-      title: normalizedTier === 'premium' && !displayResult?.quoteComparison ? 'AI Strategic Alignment' : 'Quote Comparison',
-      description: normalizedTier === 'premium' && !displayResult?.quoteComparison ? 'AI-powered strategic analysis and market positioning' : 'Side-by-side analysis of multiple quotes',
-      icon: normalizedTier === 'premium' && !displayResult?.quoteComparison ? '🎯' : '📊',
-      tier: 'premium',
-      content: displayResult?.benchmarkingOverview || displayResult?.strategicAnalysis || displayResult?.quoteComparison || 'Upload additional quotes to compare',
-      isList: false
-    },
     benchmarking: {
       title: 'Market Benchmarking',
       description: 'Compare against local market rates',
@@ -428,6 +420,14 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
       tier: 'standard',
       content: displayResult?.recommendations || [],
       isList: true
+    },
+    comparison: {
+      title: normalizedTier === 'premium' && !displayResult?.quoteComparison ? 'AI Strategic Alignment' : 'Quote Comparison',
+      description: normalizedTier === 'premium' && !displayResult?.quoteComparison ? 'AI-powered strategic analysis and market positioning' : 'Side-by-side analysis of multiple quotes',
+      icon: normalizedTier === 'premium' && !displayResult?.quoteComparison ? '🎯' : '📊',
+      tier: 'premium',
+      content: displayResult?.benchmarkingOverview || displayResult?.strategicAnalysis || displayResult?.quoteComparison || 'Upload additional quotes to compare',
+      isList: false
     }
   };
 
@@ -739,6 +739,20 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
 
       return (
         <div className="space-y-6">
+          {/* Total Cost Display Header */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6 shadow-sm">
+            <h4 className="text-sm font-bold text-green-800 uppercase tracking-widest mb-1 flex items-center gap-2">
+              <Zap className="w-4 h-4" /> Total Extracted Cost
+            </h4>
+            <div className="flex items-baseline gap-2">
+              <p className="text-4xl font-black text-gray-900">
+                ${(displayResult?.overallCost || totalCost || 0).toLocaleString()}
+              </p>
+              <p className="text-sm font-bold text-gray-500">AUD (inc. GST)</p>
+            </div>
+            <p className="text-xs text-green-700 mt-2 font-medium">Verified by AI Document Extraction</p>
+          </div>
+
           {/* Bar Graph Visualization */}
           <div className="space-y-4 p-5 bg-gray-50 border border-gray-100 rounded-2xl">
             <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Cost Distribution</h5>
@@ -838,10 +852,10 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
                   if (item.potentialSavings && item.potentialSavings > 0) {
                     displaySubtext = `${displaySubtext} • Potential savings: $${item.potentialSavings}`;
                   }
-                } else if (item.marketAvg) {
+                } else if (item.item && typeof item.marketAvg === 'number') {
                   // Benchmark object (Enhanced Premium styling)
                   displayText = item.item;
-                  const range = item.marketMax - item.marketMin;
+                  const range = (item.marketMax || 0) - (item.marketMin || 0);
                   const pos = range > 0 ? ((item.quotePrice - item.marketMin) / range) * 100 : 50;
                   const clampedPos = Math.max(0, Math.min(100, pos));
 
@@ -849,7 +863,7 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
                     <li key={index} className="flex flex-col gap-3 p-5 bg-white border border-gray-200 rounded-xl hover:border-amber-300 hover:shadow-md transition-all">
                       <div className="flex justify-between items-center">
                         <p className="font-bold text-gray-900">{displayText}</p>
-                        <p className="text-lg font-black text-amber-600">${item.quotePrice.toLocaleString()}</p>
+                        <p className="text-lg font-black text-amber-600">${(item.quotePrice || 0).toLocaleString()}</p>
                       </div>
 
                       <div className="relative h-2 bg-gray-100 rounded-full mt-2 overflow-hidden">
@@ -880,6 +894,9 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
                 } else if (item.description) {
                   // Generic object with description
                   displayText = item.description;
+                } else if (typeof item === 'object') {
+                  // Fallback for unexpected objects to prevent React rendering crashes
+                  displayText = item.item || item.name || item.title || JSON.stringify(item);
                 }
 
                 return (

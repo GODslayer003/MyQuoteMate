@@ -17,12 +17,12 @@ const TIER_LIMITS = {
     maxOutputTokens: 7000
   },
   standard: {
-    maxInputChars: 20000,
-    maxOutputTokens: 20000
+    maxInputChars: 250000, // Significantly increased for large PDFs
+    maxOutputTokens: 16000
   },
   premium: {
-    maxInputChars: 40000,
-    maxOutputTokens: 16000
+    maxInputChars: 500000, // Significantly increased for large PDFs
+    maxOutputTokens: 16384 // Maximum for long analysis
   }
 };
 

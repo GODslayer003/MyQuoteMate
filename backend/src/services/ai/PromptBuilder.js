@@ -117,9 +117,12 @@ If the document is IRRELEVANT (e.g., a recipe, medical report, travel ticket, ge
 
 ANALYSIS OBJECTIVES (STEP 2 - ONLY IF RELEVANT):
 1. Extract complete scope of work (included, excluded, unclear).
-2. Break down ALL observable costs.
+2. Break down ALL observable costs. YOU MUST perform a PAGE-BY-PAGE DETAILED ANALYSIS to ensure no items are missed. 
+   **CRITICAL TOTAL COST ACCURACY LEGISLATION**: You are absolutely FORBIDDEN from loosely estimating the 'overallCost'. You MUST scan the document for the final printed words like "Grand Total", "Total (inc GST)", or "Amount Due". 
+   - If the quote contains STCs (Small-scale Technology Certificates) or Government Incentives, these are NEGATIVE deductions. 
+   - Your extracted \`overallCost\` must be 100% mathematically accurate to the final printed dollar amount on the invoice/quote, factoring in all pages and all negative deductions.
 3. CRITICAL: Identify ALL potential risks, "red flags", or vague terms. Be extremely strict and detailed.
-4. Compare pricing to typical Australian market ranges (indicative only) and JUSTIFY your score.
+4. Compare pricing to typical Australian market ranges (indicative only) and JUSTIFY your score. Use ONLY Australian data.
 5. Suggest 5-7 specific, hard-hitting clarification questions for the contractor that protect the homeowner.
 6. Provide a comprehensive, professional summary of the quote (at least 4-5 sentences).
 7. Generate a "Detailed Cost Review" section - a technical deep-dive into the pricing and scope.
@@ -136,9 +139,10 @@ OUTPUT JSON SCHEMA (PAID TIERS):
     "verdict": {
       "label": "e.g., Great Value, Within Range, High Cost, Vague Quote",
       "score": 8.5,
-      "reasoning": "EXPLAIN IN 2-3 SENTENCES. Ground your analysis in 2026 Australian market rates. The tone of this text MUST MATCH the numerical score exactly (0-10 scale)."
+      "reasoning": "EXPLAIN IN 2-3 SENTENCES. Ground your analysis strictly in 2026 Australian market rates. The tone of this text MUST MATCH the numerical score exactly (0-10 scale)."
     },
-    "detailedReview": "A detailed textual analysis (2-3 paragraphs) of the quote's technical aspects, pricing strategy, and scope clarity. This is for Standard/Premium users.",
+    "detailedReview": "A rigorous, page-by-page textual analysis (2-3 paragraphs) of the quote's technical aspects, pricing strategy, and scope clarity. Ensure 100% accurate correlation with the extracted total cost. This is for Standard/Premium users.",
+    "overallCost": 12500,
     "scopeOfWork": {
       "included": ["string"],
       "excluded": ["string"],
@@ -259,20 +263,20 @@ YOU MUST GENERATE THESE FIELDS. THEY ARE NOT OPTIONAL. THE SYSTEM WILL REJECT YO
    - potentialSavings must be realistic: 5-15% of total depending on strategy complexity
    - difficulty: must match the implementation complexity ('easy', 'moderate', 'complex')
 
-2. MARKET BENCHMARKING (MANDATORY - AUSTRALIAN MARKET DATA):
-   - MUST contain 5-7 detailed market comparisons
-   - Compare THIS SPECIFIC QUOTE to ${new Date().getFullYear()} Australian construction market rates
-   - REQUIRED benchmark categories:
-     a) Skilled Labor Rate ($/hour) - Extract from quote, compare to AU market $85-$125/hr
-     b) Materials Cost (% of total) - Calculate from breakdown, compare to market 28-48%
-     c) Project Management Fee (%) - Identify in quote, compare to market 8-22%
-     d) Total Project Cost (with m² estimation) - Estimate space, compare to $1,800-$3,000/m²
-     e) Cost per Square Meter - Calculate rate, compare to market averages
+2. MARKET BENCHMARKING (MANDATORY - STRICTLY AUSTRALIAN MARKET DATA):
+   - MUST contain 5-7 detailed market comparisons.
+   - Compare THIS SPECIFIC QUOTE to ${new Date().getFullYear()} Australian construction market rates.
+   - IT MUST BE DYNAMIC: Rather than using generic categories (like "Materials Cost"), you MUST extract the actual specific line items from the provided quote (e.g., "Custom Cabinetry", "Roof Tiles", "Plumbing Rough-in") and benchmark those specific services against the AU market.
+   - REQUIRED benchmarking rules:
+     a) Only quote in AUD and use Australian context.
+     b) Extract the specific item/service name exactly as found in the quote (e.g. "Labor Rate - Electrician").
+     c) Estimate what the Australian market equivalent should be ($/hour or $/unit).
+     d) If the item is a total chunk (e.g., "Bathroom Renovation Package"), calculate a realistic market min/max/avg for that scope in Australia. 
    - Use REAL ${new Date().getFullYear()} Australian market data:
-     * Skilled trades: $95-$120/hr
-     * General labor: $60-$75/hr
+     * Skilled trades: $95-$125/hr
+     * General labor: $60-$80/hr
      * Materials markup: 20-35% above wholesale
-   - Percentile must be meaningful based on the data.
+   - Percentile must be logically calculated meaning (QuotePrice - MarketMin) / (MarketMax - MarketMin) * 100.
 
 3. VISUAL INTELLIGENCE (MANDATORY):
    - Populate 'visualizations' object with high-quality data for riskProfile, costDistribution, savingsROI, and timelineEstimates.
@@ -308,6 +312,8 @@ YOU MUST GENERATE THESE FIELDS. THEY ARE NOT OPTIONAL. THE SYSTEM WILL REJECT YO
     prompt += `
 IMPORTANT:
 - Base your response on the document text above and any attached images.
+- If the document is large (e.g., 5-15 pages), you MUST DO A FULL PAGE-BY-PAGE DETAILED ANALYSIS. Do not truncate your reading or summarization. 
+- CRITICAL MATHEMATICAL INSTRUCTION: Your extracted Total Cost MUST exactly match the printed "Grand Total" or "Total (inc. GST)" on the document. Do NOT sum line items dynamically if they contradict the printed bottom-line total. Pay extremely close attention to negative amounts (e.g. STC incentives) that deduct from the total.
 - If something is unclear or missing, state that clearly.
 - Respond strictly using the JSON schema provided.
 `;
