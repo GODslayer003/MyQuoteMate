@@ -313,47 +313,61 @@ class ReportService {
 
         // Draw professional horizontal bar chart
         const catNames = Object.keys(categories);
-        const barHeight = 22;
-        const spacing = 12;
-        const maxValue = Math.max(...Object.values(categories));
-        const chartWidth = width - 140;
+        const barHeight = 24;
+        const spacing = 10;
+        const labelColW = 100;  // fixed label column width
+        const chartWidth = width - labelColW - 50; // 50px right margin for percentage
+        const maxValue = Math.max(...Object.values(categories).map(Math.abs));
 
         catNames.forEach((cat, idx) => {
             const value = categories[cat];
-            const barWidth = (value / maxValue) * chartWidth;
+            const absValue = Math.abs(value);
+            const fillWidth = maxValue > 0 ? Math.max(4, (absValue / maxValue) * chartWidth) : 4;
+            const barX = x + labelColW + 8;
             const barY = y + idx * (barHeight + spacing);
+
+            // Category label (right-aligned in label column)
+            doc.fillColor('#1f2937')
+                .font('Helvetica-Bold')
+                .fontSize(8.5)
+                .text(cat, x, barY + (barHeight / 2) - 5, { width: labelColW - 4, align: 'right' });
 
             // Bar background rail
             doc.save();
-            doc.fillColor('#eff6ff')
-                .roundedRect(x + 100, barY, chartWidth, barHeight, 4)
+            doc.fillColor('#f0f4ff')
+                .roundedRect(barX, barY, chartWidth, barHeight, 4)
                 .fill();
             doc.restore();
 
-            // Bar fill (Gradient effect via two rects)
+            // Bar fill
+            const barColor = value < 0 ? '#ef4444' : this.colors.standard.primary;
             doc.save();
-            doc.fillColor(this.colors.standard.primary)
-                .roundedRect(x + 100, barY, barWidth, barHeight, 4)
+            doc.fillColor(barColor)
+                .roundedRect(barX, barY, fillWidth, barHeight, 4)
                 .fill();
             doc.restore();
 
-            // Label
-            doc.fillColor('#1f2937')
-                .font('Helvetica-Bold')
-                .fontSize(9)
-                .text(cat, x, barY + barHeight / 2 - 4.5, { width: 90, align: 'right' });
+            // Value label — inside bar if wide enough, otherwise after bar
+            const valueText = `$${value.toLocaleString()}`;
+            const valueFontSize = 8;
+            if (fillWidth > 60) {
+                doc.fillColor('#ffffff')
+                    .font('Helvetica-Bold')
+                    .fontSize(valueFontSize)
+                    .text(valueText, barX + 6, barY + (barHeight / 2) - 4, { width: fillWidth - 10 });
+            } else {
+                doc.fillColor('#374151')
+                    .font('Helvetica-Bold')
+                    .fontSize(valueFontSize)
+                    .text(valueText, barX + fillWidth + 4, barY + (barHeight / 2) - 4);
+            }
 
-            // Value label
-            doc.fillColor('#4b5563')
-                .font('Helvetica')
-                .fontSize(8)
-                .text(`$${value.toLocaleString()}`, x + 105, barY + barHeight / 2 - 4);
-
-            // Percentage
-            const percent = Math.round((value / total) * 100);
+            // Percentage (right side)
+            const percent = total !== 0 ? Math.round((value / total) * 100) : 0;
             doc.fillColor('#9ca3af')
-                .fontSize(8)
-                .text(`${percent}%`, x + 100 + chartWidth - 25, barY + barHeight / 2 - 4);
+                .font('Helvetica')
+                .fontSize(7.5)
+                .text(`${percent}%`, barX + chartWidth + 4, barY + (barHeight / 2) - 4, { width: 44, align: 'right' });
         });
     }
 
@@ -395,6 +409,9 @@ class ReportService {
 
                 // Page 3: Detailed Cost Breakdown
                 await this.generatePage3CostBreakdown(doc, job, result, tier, colors);
+
+                // Page 3.5: Data Visualizations (New Graphs Page)
+                await this.generatePageDataVisualizations(doc, job, result, tier, colors);
 
                 // Page 4: Risk Analytics Dashboard (New Dedicated Graph Page)
                 await this.generatePage4RiskDashboard(doc, job, result, tier, colors);
@@ -457,59 +474,59 @@ class ReportService {
     addHeader(doc, pageNum, tier, colors) {
         const pageWidth = doc.page.width;
 
-        // Header Background bar - Slim & Executive Style
+        // Header Background bar
         doc.save();
         doc.fillColor(colors.primary)
             .fillOpacity(0.04)
-            .rect(0, 0, pageWidth, 110) // Increased height for larger logo
+            .rect(0, 0, pageWidth, 115) // Expanded header for prominent logo
             .fill();
         doc.restore();
 
         // Logo & Brand Section
-        const logoY = 12; // Adjusted vertical positioning
+        const logoY = 7; // Vertically centered in 115px header
         if (fs.existsSync(this.logoPath)) {
             try {
-                // Larger Logo prominence (Requested "strictly more bigger")
-                doc.image(this.logoPath, 40, logoY, { height: 85 });
+                // Large prominent logo in the header
+                doc.image(this.logoPath, 40, logoY, { height: 100 });
 
-                // Elegant Vertical Divider
+                // Vertical Divider
                 doc.save();
-                doc.moveTo(145, logoY + 5)
-                    .lineTo(145, logoY + 80)
+                doc.moveTo(162, logoY + 5)
+                    .lineTo(162, logoY + 90)
                     .lineWidth(0.5)
                     .strokeColor(this.colors.neutral.lightGray)
                     .stroke();
                 doc.restore();
 
-                // Brand Name - Professional Spacing
+                // Brand Name
                 doc.fillColor(colors.primary)
                     .font('Helvetica-Bold')
-                    .fontSize(20) // Slightly larger font
-                    .text('MYQUOTEMATE', 165, logoY + 25, { characterSpacing: 3 });
+                    .fontSize(22)
+                    .text('MYQUOTEMATE', 180, logoY + 22, { characterSpacing: 3 });
 
                 // Subtitle
                 doc.fillColor(this.colors.neutral.gray)
                     .font('Helvetica')
-                    .fontSize(9.5)
-                    .text('2026 TECHNICAL ANALYSIS', 165, logoY + 50, { characterSpacing: 1.2 });
+                    .fontSize(8.5)
+                    .text('2026 TECHNICAL ANALYSIS', 180, logoY + 52, { characterSpacing: 1.2 });
             } catch (err) {
                 doc.fillColor(colors.primary)
                     .font('Helvetica-Bold')
-                    .fontSize(22)
-                    .text('MyQuoteMate', 40, 40);
+                    .fontSize(20)
+                    .text('MyQuoteMate', 40, 30);
             }
         } else {
             doc.fillColor(colors.primary)
                 .font('Helvetica-Bold')
-                .fontSize(22)
-                .text('MyQuoteMate', 40, 40);
+                .fontSize(20)
+                .text('MyQuoteMate', 40, 30);
         }
 
-        // Page number badge - Slim glassmorphism
+        // Page number badge
         const badgeWidth = 140;
         const badgeHeight = 28;
         const badgeX = pageWidth - 40 - badgeWidth;
-        const badgeY = 26;
+        const badgeY = 30;
 
         doc.save();
         doc.fillColor(colors.primary)
@@ -527,18 +544,18 @@ class ReportService {
         doc.fillColor(colors.primary)
             .font('Helvetica-Bold')
             .fontSize(10)
-            .text(`${tier.toUpperCase()} REPORT`, badgeX, badgeY + 10, {
+            .text(`${tier.toUpperCase()} REPORT`, badgeX, badgeY + 9, {
                 width: badgeWidth,
                 align: 'center',
                 characterSpacing: 1.5
             });
 
-        // Header line - Subtle separator
-        doc.moveTo(40, 110)
-            .lineTo(pageWidth - 40, 110)
+        // Header separator line at y=115
+        doc.moveTo(40, 115)
+            .lineTo(pageWidth - 40, 115)
             .lineWidth(0.5)
             .strokeColor(colors.primary)
-            .strokeOpacity(0.1)
+            .strokeOpacity(0.2)
             .stroke();
     }
 
@@ -761,38 +778,37 @@ class ReportService {
         this.addHeader(doc, 2, tier, colors);
 
         const pageWidth = doc.page.width;
-        let currentY = 115; // Adjusted for slim header
+        const pageHeight = doc.page.height;
+        const footerZone = pageHeight - 70; // Keep content above footer
+        let currentY = 130; // ✅ Professional gap from header (header ends at y=110)
 
-        // Page title - More authoritative
+        // Page title - Professional with breathing room from header
         doc.fillColor(this.colors.neutral.dark)
             .font('Helvetica-Bold')
-            .fontSize(32)
+            .fontSize(26) // Compact but authoritative
             .text('Executive Summary', 40, currentY);
 
         // Sophisticated Double underline style
         doc.save();
-        // Thick short accent
-        doc.moveTo(40, currentY + 42)
-            .lineTo(80, currentY + 42)
+        doc.moveTo(40, currentY + 34)
+            .lineTo(75, currentY + 34)
             .lineWidth(3)
             .strokeColor(colors.primary)
             .stroke();
-
-        // Thin long extension
-        doc.moveTo(85, currentY + 42)
-            .lineTo(250, currentY + 42)
+        doc.moveTo(80, currentY + 34)
+            .lineTo(240, currentY + 34)
             .lineWidth(0.5)
             .strokeColor(this.colors.neutral.lightGray)
             .stroke();
         doc.restore();
 
-        currentY += 80;
+        currentY += 56; // Tighter spacing after title
 
-        // Key metrics grid (2x2)
+        // Key metrics grid (2x2) — compact boxes
         const gridStartY = currentY;
         const boxWidth = (pageWidth - 100) / 2;
-        const boxHeight = 100;
-        const gap = 20;
+        const boxHeight = 85; // Reduced from 100
+        const gap = 12; // Reduced from 20
 
         const verdictScore = result.verdictScore || 0;
         const normalizedScore = verdictScore > 10 ? verdictScore / 10 : verdictScore;
@@ -830,109 +846,124 @@ class ReportService {
             const x = 40 + col * (boxWidth + gap);
             const y = gridStartY + row * (boxHeight + gap);
 
-            // Box - Professional Shadow-lite
+            // Box with subtle shadow
             doc.save();
-            // Subtle Shadow
             doc.fillColor(this.colors.neutral.lightGray)
-                .fillOpacity(0.1)
+                .fillOpacity(0.08)
                 .roundedRect(x + 1, y + 1, boxWidth, boxHeight, 4)
                 .fill();
-
-            // Main Box
             doc.fillColor('#ffffff')
                 .roundedRect(x, y, boxWidth, boxHeight, 4)
                 .fill()
-                .strokeColor('#e2e8f0') // More professional divider
+                .strokeColor('#e2e8f0')
                 .lineWidth(0.5)
                 .stroke();
             doc.restore();
 
             // Label
-            doc.fillColor('#64748b') // Slate 500
+            doc.fillColor('#64748b')
                 .font('Helvetica-Bold')
-                .fontSize(9)
-                .text(metric.label, x + 20, y + 20, { characterSpacing: 1 });
+                .fontSize(8.5)
+                .text(metric.label, x + 16, y + 16, { characterSpacing: 1 });
 
             // Value
             doc.fillColor(metric.color)
                 .font('Helvetica-Bold')
-                .fontSize(26)
-                .text(metric.value, x + 20, y + 42);
+                .fontSize(24)
+                .text(metric.value, x + 16, y + 35);
 
-            // Icon circle background
-            const iconX = x + boxWidth - 44;
-            const iconY = y + 32;
-            const iconSize = 24;
+            // Icon circle
+            const iconX = x + boxWidth - 42;
+            const iconY = y + 28;
+            const iconSize = 22;
 
             doc.save();
             doc.fillColor(metric.color)
                 .fillOpacity(0.1)
-                .circle(iconX + iconSize / 2, iconY + iconSize / 2, 18)
+                .circle(iconX + iconSize / 2, iconY + iconSize / 2, 16)
                 .fill();
             doc.restore();
 
-            // Draw proper icon based on type
             switch (metric.iconType) {
-                case 'checkmark':
-                    this.drawCheckmark(doc, iconX, iconY, iconSize, metric.color);
-                    break;
-                case 'alert':
-                    this.drawAlert(doc, iconX, iconY, iconSize, metric.color);
-                    break;
-                case 'dollar':
-                    this.drawDollarSign(doc, iconX, iconY, iconSize, metric.color);
-                    break;
-                case 'info':
-                    this.drawInfoIcon(doc, iconX, iconY, iconSize, metric.color);
-                    break;
+                case 'checkmark': this.drawCheckmark(doc, iconX, iconY, iconSize, metric.color); break;
+                case 'alert': this.drawAlert(doc, iconX, iconY, iconSize, metric.color); break;
+                case 'dollar': this.drawDollarSign(doc, iconX, iconY, iconSize, metric.color); break;
+                case 'info': this.drawInfoIcon(doc, iconX, iconY, iconSize, metric.color); break;
             }
         });
 
-        currentY = gridStartY + 2 * (boxHeight + gap) + 30;
+        currentY = gridStartY + 2 * (boxHeight + gap) + 22;
 
-        // Summary text
-        doc.fillColor('#0f172a')
-            .font('Helvetica-Bold')
-            .fontSize(14)
-            .text('Analysis Overview', 40, currentY);
+        // ── Analysis Overview ──────────────────────────────────────────────────
+        // Guard: only draw if still above footer
+        if (currentY + 20 < footerZone) {
+            doc.fillColor('#0f172a')
+                .font('Helvetica-Bold')
+                .fontSize(13)
+                .text('Analysis Overview', 40, currentY);
 
-        currentY += 28;
+            currentY += 22;
 
-        const summaryText = result.summary || 'Quote analysis completed successfully.';
-        doc.fillColor('#334155') // Slate 700
-            .font('Helvetica')
-            .fontSize(11.5)
-            .text(summaryText, 40, currentY, {
-                width: pageWidth - 80,
-                align: 'justify',
-                lineGap: 5
-            });
+            // Clamp summary text to ~700 chars so it never overflows
+            let summaryText = result.summary || 'Quote analysis completed successfully.';
+            const maxSummaryChars = 700;
+            if (summaryText.length > maxSummaryChars) {
+                summaryText = summaryText.substring(0, maxSummaryChars).trimEnd() + '…';
+            }
 
-        currentY = doc.y + 20;
+            // Calculate available height for summary before footer
+            const verdictReservedHeight = result.verdictJustification ? 120 : 0;
+            const availableForSummary = footerZone - currentY - verdictReservedHeight - 10;
 
-        // Verdict justification
-        if (result.verdictJustification) {
+            doc.fillColor('#334155')
+                .font('Helvetica')
+                .fontSize(10.5)
+                .text(summaryText, 40, currentY, {
+                    width: pageWidth - 80,
+                    align: 'justify',
+                    lineGap: 3,
+                    height: availableForSummary,
+                    ellipsis: true
+                });
+
+            currentY = doc.y + 14;
+        }
+
+        // ── Price Verdict ──────────────────────────────────────────────────────
+        if (result.verdictJustification && currentY + 80 < footerZone) {
             doc.fillColor(this.colors.neutral.dark)
                 .font('Helvetica-Bold')
-                .fontSize(14)
+                .fontSize(13)
                 .text('Price Verdict', 40, currentY);
 
-            currentY += 25;
+            currentY += 20;
+
+            // Clamp verdict text to ~420 chars
+            let verdictText = result.verdictJustification;
+            const maxVerdictChars = 420;
+            if (verdictText.length > maxVerdictChars) {
+                verdictText = verdictText.substring(0, maxVerdictChars).trimEnd() + '…';
+            }
+
+            // Available height until footer
+            const availableVerdictH = Math.min(footerZone - currentY - 10, 95);
 
             doc.save();
             doc.fillColor(colors.primary)
                 .fillOpacity(0.05)
-                .roundedRect(40, currentY, pageWidth - 80, 80, 8)
+                .roundedRect(40, currentY, pageWidth - 80, availableVerdictH, 6)
                 .fill();
             doc.restore();
 
             doc.fillColor(this.colors.neutral.dark)
                 .font('Helvetica')
-                .fontSize(11)
-                .text(result.verdictJustification, 55, currentY + 15, {
+                .fontSize(10)
+                .text(verdictText, 55, currentY + 12, {
                     width: pageWidth - 110,
                     align: 'justify',
-                    lineGap: 4
+                    lineGap: 3,
+                    height: availableVerdictH - 16,
+                    ellipsis: true
                 });
         }
 
@@ -947,21 +978,21 @@ class ReportService {
         this.addHeader(doc, 3, tier, colors);
 
         const pageWidth = doc.page.width;
-        let currentY = 100;
+        let currentY = 140; // 25px clear gap below header separator at y=115
 
         // Page title
         doc.fillColor(colors.primary)
             .font('Helvetica-Bold')
-            .fontSize(28)
+            .fontSize(24)
             .text('Cost Breakdown', 40, currentY);
 
-        doc.moveTo(40, currentY + 38)
-            .lineTo(200, currentY + 38)
+        doc.moveTo(40, currentY + 32)
+            .lineTo(190, currentY + 32)
             .lineWidth(3)
             .strokeColor(colors.primary)
             .stroke();
 
-        currentY += 85; // More breathing room
+        currentY += 70; // Compact breathing room after title
 
         // Cost breakdown table
         const costItems = result.costBreakdown || [];
@@ -1004,15 +1035,25 @@ class ReportService {
             currentY = doc.y + 30;
 
             // Add cost distribution chart if space available
-            if (currentY < 500 && costItems.length > 1) {
+            // Compute actual chart height: categories × (barHeight + spacing)
+            const categories = {};
+            costItems.forEach(item => {
+                const cat = (item.category || 'Other').toUpperCase();
+                categories[cat] = (categories[cat] || 0) + (item.totalPrice || item.amount || 0);
+            });
+            const numCategories = Object.keys(categories).length;
+            const chartRowH = 24 + 10; // barHeight + spacing
+            const actualChartH = numCategories * chartRowH;
+            // Only render chart if total box (60px) + chart + 20px gap fit before footer (y=720)
+            if (currentY < 480 && costItems.length > 1 && (currentY + actualChartH + 20 + 60) < 720) {
                 doc.fillColor(this.colors.neutral.dark)
                     .font('Helvetica-Bold')
                     .fontSize(12)
                     .text('Cost Distribution by Category', 40, currentY);
 
-                currentY += 25;
-                this.drawCostDistributionChart(doc, 40, currentY, pageWidth - 80, 150, costItems);
-                currentY += 160;
+                currentY += 22;
+                this.drawCostDistributionChart(doc, 40, currentY, pageWidth - 80, actualChartH, costItems);
+                currentY += actualChartH + 20; // precise gap after chart
             }
         } else {
             doc.fillColor(this.colors.neutral.gray)
@@ -1060,21 +1101,21 @@ class ReportService {
         this.addHeader(doc, 4, tier, colors);
 
         const pageWidth = doc.page.width;
-        let currentY = 110;
+        let currentY = 140; // 25px clear gap below header separator at y=115
 
         // Page title
         doc.fillColor(colors.primary)
             .font('Helvetica-Bold')
-            .fontSize(28)
+            .fontSize(24)
             .text('Risk Analytics Dashboard', 40, currentY);
 
-        doc.moveTo(40, currentY + 38)
-            .lineTo(160, currentY + 38)
+        doc.moveTo(40, currentY + 32)
+            .lineTo(155, currentY + 32)
             .lineWidth(3)
             .strokeColor(colors.primary)
             .stroke();
 
-        currentY += 75;
+        currentY += 60;
 
         const redFlags = result.redFlags || [];
         const riskCounts = {
@@ -1152,21 +1193,21 @@ class ReportService {
         this.addHeader(doc, 5, tier, colors);
 
         const pageWidth = doc.page.width;
-        let currentY = 110;
+        let currentY = 140; // 25px clear gap below header separator at y=115
 
         // Page title
         doc.fillColor(colors.primary)
             .font('Helvetica-Bold')
-            .fontSize(28)
-            .text('Critical Red Flags', 40, currentY);
+            .fontSize(24)
+            .text('Critical Red Flags & Mitigation', 40, currentY);
 
-        doc.moveTo(40, currentY + 38)
-            .lineTo(160, currentY + 38)
+        doc.moveTo(40, currentY + 32)
+            .lineTo(155, currentY + 32)
             .lineWidth(3)
             .strokeColor(colors.primary)
             .stroke();
 
-        currentY += 70;
+        currentY += 55;
 
         const redFlags = result.redFlags || [];
 
@@ -1208,7 +1249,7 @@ class ReportService {
                     this.addFooter(doc, job.jobId);
                     doc.addPage();
                     this.addHeader(doc, 5, tier, colors);
-                    currentY = 110;
+                    currentY = 140; // Match header clearance on continuation pages
                 }
             });
         } else {
@@ -1227,7 +1268,7 @@ class ReportService {
      * PAGE 4.5: Quote Comparison Matrix (Premium Only)
      */
     async generatePageComparison(doc, job, result, tier, colors) {
-        if (tier !== 'premium') return;
+        if (tier !== 'premium') return; // Quote Comparison is Premium-only
         if (!result.quoteComparison) return; // Prevent empty comparison page for single-quote premium
 
         doc.addPage();
@@ -1236,21 +1277,33 @@ class ReportService {
 
         const pageWidth = doc.page.width;
         const centerX = pageWidth / 2;
-        let currentY = 135; // Adjusted (was 100) to clear header
+        let currentY = 110; // 20px gap from 90px header
 
         // Page title
         doc.fillColor(colors.primary)
             .font('Helvetica-Bold')
-            .fontSize(28)
-            .text('Quote Comparison', 40, currentY);
+            .fontSize(24)
+            .text('Quote Comparison Matrix', 40, currentY);
 
-        doc.moveTo(40, currentY + 38)
-            .lineTo(250, currentY + 38)
-            .lineWidth(4)
+        doc.moveTo(40, currentY + 32)
+            .lineTo(230, currentY + 32)
+            .lineWidth(3)
             .strokeColor(colors.primary)
             .stroke();
 
-        currentY += 70;
+        // Premium badge
+        doc.save();
+        doc.fillColor(colors.primary)
+            .fillOpacity(0.08)
+            .roundedRect(pageWidth - 165, currentY, 125, 24, 12)
+            .fill();
+        doc.restore();
+        doc.fillColor(colors.primary)
+            .font('Helvetica-Bold')
+            .fontSize(8)
+            .text('✦ PREMIUM FEATURE', pageWidth - 160, currentY + 8, { width: 115, align: 'center', characterSpacing: 0.5 });
+
+        currentY += 55;
 
         const comp = result.quoteComparison || {};
 
@@ -1388,6 +1441,26 @@ class ReportService {
         this.addFooter(doc, job.jobId);
     }
 
+    // ── Helper: truncate text at the last complete sentence within maxChars ──
+    _toCompleteSentence(text, maxChars) {
+        if (!text) return '';
+        if (text.length <= maxChars) return text.trim();
+        const slice = text.substring(0, maxChars);
+        // Find last sentence-ending punctuation followed by a space or end
+        const endings = ['. ', '! ', '? ', '.\n', '!\n', '?\n'];
+        let bestIdx = -1;
+        endings.forEach(e => {
+            const idx = slice.lastIndexOf(e);
+            if (idx > bestIdx) bestIdx = idx;
+        });
+        if (bestIdx > maxChars * 0.4) {
+            return slice.substring(0, bestIdx + 1).trim();
+        }
+        // Fall back: last complete word
+        const lastSpace = slice.lastIndexOf(' ');
+        return lastSpace > 0 ? slice.substring(0, lastSpace).trim() : slice.trim();
+    }
+
     /**
      * PAGE 6: Market Benchmarking (Standard & Premium)
      */
@@ -1396,117 +1469,117 @@ class ReportService {
         this.addHeader(doc, 6, tier, colors);
 
         const pageWidth = doc.page.width;
-        let currentY = 135; // Adjusted (was 100) to clear header
+        const pageHeight = doc.page.height;
+        const footerZone = pageHeight - 70;
+        const contentW = pageWidth - 120; // 60px left + 60px right margin
+        let currentY = 140; // 25px clear gap below header separator at y=115
 
         // Page title
-        doc.fillColor(colors.primary)
-            .font('Helvetica-Bold')
-            .fontSize(28)
-            .text('Market Benchmarking', 40, currentY); // Renamed from Executive Benchmarking
+        doc.fillColor(colors.primary).font('Helvetica-Bold').fontSize(24)
+            .text('Market Benchmarking', 40, currentY);
+        doc.moveTo(40, currentY + 32).lineTo(155, currentY + 32)
+            .lineWidth(3).strokeColor(colors.primary).stroke();
+        currentY += 48;
 
-        doc.moveTo(40, currentY + 38)
-            .lineTo(160, currentY + 38)
-            .lineWidth(3)
-            .strokeColor(colors.primary)
-            .stroke();
-
-        currentY += 60; // Reduced spacing
-
-        // Benchmarking data
+        // Fixed card layout constants
+        // Card anatomy: 10px top-padding + 14px name + 8px gap + 10px bar + 12px labels + 13px quote = 67px content
+        //               + 10px bottom-padding = 78px total
+        const CARD_H = 78;
+        const CARD_GAP = 6;
+        const INSIGHT_H = 46;
         const benchmarks = result.benchmarking || [];
 
+        // Calculate how many benchmark cards fit above the insight box
+        const maxCards = Math.min(
+            benchmarks.length,
+            Math.floor((footerZone - currentY - INSIGHT_H - CARD_GAP) / (CARD_H + CARD_GAP))
+        );
+
         if (benchmarks.length > 0) {
-            benchmarks.slice(0, 6).forEach((benchmark, idx) => {
-                // Item Box
-                doc.save();
-                doc.fillColor('#ffffff')
-                    .roundedRect(40, currentY, pageWidth - 80, 85, 8)
-                    .fill()
-                    .strokeColor(this.colors.neutral.lightGray)
-                    .lineWidth(0.5)
-                    .stroke();
-                doc.restore();
-
-                // Item name
-                doc.fillColor(this.colors.neutral.dark)
-                    .font('Helvetica-Bold')
-                    .fontSize(12)
-                    .text(benchmark.item, 60, currentY + 15);
-
-                // Visualization
-                const barY = currentY + 42;
-                const barWidth = pageWidth - 160;
+            benchmarks.slice(0, maxCards).forEach((benchmark) => {
                 const quotePrice = benchmark.quotePrice || 0;
                 const marketMin = benchmark.marketMin || 0;
                 const marketMax = benchmark.marketMax || 100;
                 const marketAvg = benchmark.marketAvg || 50;
+                const range = marketMax - marketMin || 1;
+                const barWidth = contentW;
 
-                // Market Range Bar (Gradient-like effect with opacity)
+                // Card shell
                 doc.save();
-                doc.fillColor('#e2e8f0') // Slate 200
-                    .roundedRect(60, barY, barWidth, 14, 7)
-                    .fill();
-
-                // Highlight Average Sector with a vertical line
-                const range = marketMax - marketMin;
-                const avgPos = range > 0 ? ((marketAvg - marketMin) / range) * barWidth : barWidth / 2;
-
-                doc.fillColor(colors.primary)
-                    .fillOpacity(0.12)
-                    .rect(60 + avgPos - 15, barY - 4, 30, 22)
-                    .fill();
-
-                doc.strokeColor(colors.primary)
-                    .lineWidth(1.5)
-                    .moveTo(60 + avgPos, barY - 4)
-                    .lineTo(60 + avgPos, barY + 18)
-                    .stroke();
+                doc.fillColor('#ffffff')
+                    .roundedRect(40, currentY, pageWidth - 80, CARD_H, 5)
+                    .fill()
+                    .strokeColor('#e2e8f0').lineWidth(0.5).stroke();
                 doc.restore();
 
-                // Quote Indicator (Deeper gold/black)
-                const position = range > 0 ? ((quotePrice - marketMin) / range) * barWidth : barWidth / 2;
-                const clampedPosition = Math.max(0, Math.min(barWidth, position));
+                // Item name — truncate to 80 chars (single line at 10.5px on 435px = enough)
+                const itemName = (benchmark.item || 'Item').substring(0, 75);
+                doc.fillColor(this.colors.neutral.dark).font('Helvetica-Bold').fontSize(10.5)
+                    .text(itemName, 60, currentY + 10, { width: contentW, lineBreak: false });
 
+                // Bar track (y = 10+14+8 = 32)
+                const barY = currentY + 32;
+                doc.save();
+                doc.fillColor('#e2e8f0').roundedRect(60, barY, barWidth, 10, 5).fill();
+
+                // Avg zone + line
+                const avgPos = ((marketAvg - marketMin) / range) * barWidth;
+                doc.fillColor(colors.primary).fillOpacity(0.18)
+                    .rect(60 + avgPos - 9, barY - 2, 18, 14).fill();
+                doc.strokeColor(colors.primary).lineWidth(1.5)
+                    .moveTo(60 + avgPos, barY - 2)
+                    .lineTo(60 + avgPos, barY + 12).stroke();
+                doc.restore();
+
+                // Quote dot
+                const rawPos = ((quotePrice - marketMin) / range) * barWidth;
+                const dotX = 60 + Math.max(0, Math.min(barWidth, rawPos));
                 doc.save();
                 doc.fillColor(tier === 'premium' ? '#000000' : colors.primary)
-                    .circle(60 + clampedPosition, barY + 7, 8)
-                    .fill()
-                    .strokeColor('#ffffff')
-                    .lineWidth(1.5)
-                    .stroke();
+                    .circle(dotX, barY + 5, 6.5)
+                    .fill().strokeColor('#ffffff').lineWidth(1.5).stroke();
                 doc.restore();
 
-                // Detailed Labels Alignment - Perfect centring
-                doc.fillColor('#475569').font('Helvetica').fontSize(8); // Slate 600
-                doc.text(`Min: $${marketMin.toLocaleString()}`, 60, barY + 22, { width: 80, align: 'left' });
-                doc.text(`Avg: $${marketAvg.toLocaleString()}`, 60 + avgPos - 40, barY + 25, { width: 80, align: 'center' });
-                doc.text(`Max: $${marketMax.toLocaleString()}`, 60 + barWidth - 80, barY + 22, { width: 80, align: 'right' });
+                // Min / Avg / Max labels (y = barY + 13)
+                doc.fillColor('#475569').font('Helvetica').fontSize(7.5);
+                doc.text(`Min: $${marketMin.toLocaleString()}`, 60, barY + 13, { width: 65, align: 'left' });
+                doc.text(`Avg: $${marketAvg.toLocaleString()}`, 60 + avgPos - 32, barY + 13, { width: 64, align: 'center' });
+                doc.text(`Max: $${marketMax.toLocaleString()}`, 60 + barWidth - 60, barY + 13, { width: 60, align: 'right' });
 
-                // Meta Line: Percentage and Price
-                const metaLineY = barY + 45;
-                doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(11); // Slate 900
-                doc.text(`Your Quote: $${quotePrice.toLocaleString()}`, 60, metaLineY);
+                // Your Quote + Percentile (y = barY + 26 = ~58 from card top)
+                doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(9.5)
+                    .text(`Your Quote: $${quotePrice.toLocaleString()}`, 60, barY + 27);
 
                 if (benchmark.percentile !== undefined) {
-                    const percColor = benchmark.percentile > 75 ? '#b91c1c' : benchmark.percentile < 40 ? '#15803d' : '#334155';
-                    doc.fillColor(percColor).font('Helvetica-Bold').fontSize(10);
-                    doc.text(`${benchmark.percentile}th Percentile`, pageWidth - 160, metaLineY, { align: 'right', width: 100 });
+                    const pc = benchmark.percentile;
+                    const pcColor = pc > 75 ? '#b91c1c' : pc < 40 ? '#15803d' : '#334155';
+                    doc.fillColor(pcColor).font('Helvetica-Bold').fontSize(9)
+                        .text(`${pc}th Percentile`, pageWidth - 155, barY + 27, { align: 'right', width: 95 });
                 }
 
-                currentY += 100; // Compacted spacing
+                currentY += CARD_H + CARD_GAP;
             });
 
-            // Benchmark Summary
+            // Insight box — complete sentence, fixed height
+            currentY += 4;
+            const rawInsight = result.benchmarkingOverview ||
+                'Comparison based on 2026 AU localized trade data. Projects within the 40–60th percentile represent optimal value-to-risk balance.';
+            const insightText = this._toCompleteSentence(rawInsight, 240);
+
             doc.save();
-            doc.fillColor(colors.primary).fillOpacity(0.03).roundedRect(40, currentY, pageWidth - 80, 55, 8).fill();
+            doc.fillColor(colors.primary).fillOpacity(0.04)
+                .roundedRect(40, currentY, pageWidth - 80, INSIGHT_H, 5).fill();
             doc.restore();
 
-            doc.fillColor(colors.primary).font('Helvetica-Bold').fontSize(10).text('Benchmarking Insight', 60, currentY + 12);
-            doc.fillColor('#1e293b').font('Helvetica').fontSize(8.5) // Slightly smaller
-                .text(result.benchmarkingOverview || 'Comparison based on current 2026 AU localized trade data. Projects within the 40-60th percentile represent optimal value-to-risk balance.', 60, currentY + 28, { width: pageWidth - 140, lineGap: 2.5 });
+            doc.fillColor(colors.primary).font('Helvetica-Bold').fontSize(9.5)
+                .text('Benchmarking Insight', 58, currentY + 8);
+            doc.fillColor('#1e293b').font('Helvetica').fontSize(8.5)
+                .text(insightText, 58, currentY + 24, { width: pageWidth - 140 });
 
         } else {
-            doc.fillColor(this.colors.neutral.gray).font('Helvetica').fontSize(12).text('Market comparative data not available for this specific scope.', 40, currentY + 50, { align: 'center', width: pageWidth - 80 });
+            doc.fillColor(this.colors.neutral.gray).font('Helvetica').fontSize(11)
+                .text('Market comparative data not available for this specific scope.',
+                    40, currentY + 50, { align: 'center', width: pageWidth - 80 });
         }
 
         this.addFooter(doc, job.jobId);
@@ -1520,82 +1593,102 @@ class ReportService {
         this.addHeader(doc, 7, tier, colors);
 
         const pageWidth = doc.page.width;
-        let currentY = 100; // Adjusted for fit
+        const pageHeight = doc.page.height;
+        const footerZone = pageHeight - 70;
+        const contentW = pageWidth - 148; // 90px left, 58px right
+        let currentY = 140; // 25px clear gap below header separator at y=115
 
         // Page title
-        doc.fillColor(colors.primary)
-            .font('Helvetica-Bold')
-            .fontSize(28)
+        doc.fillColor(colors.primary).font('Helvetica-Bold').fontSize(24)
             .text('Strategic Recommendations', 40, currentY);
+        doc.moveTo(40, currentY + 32).lineTo(210, currentY + 32)
+            .lineWidth(3).strokeColor(colors.primary).stroke();
+        currentY += 48;
 
-        doc.moveTo(40, currentY + 38)
-            .lineTo(220, currentY + 38)
-            .lineWidth(3)
-            .strokeColor(colors.primary)
-            .stroke();
+        // ── Fixed card anatomy ────────────────────────────────────────────────
+        // Top pad:       10px
+        // Title:         26px  (2 lines × 13px, fontSize 10, no ellipsis – wrap ok)
+        // Gap:            6px
+        // Badge row:     18px
+        // Gap:            6px
+        // Description:   42px  (3 lines × 14px, fontSize 9.5, lineGap 2)
+        // Bottom pad:    10px
+        // ───────────────────
+        // TOTAL:        118px  + 8px gap between cards
+        const CARD_H = 118;
+        const CARD_GAP = 8;
+        const TITLE_TOP = 10;   // y offset from card top
+        const TITLE_H = 26;   // reserved for title (2 lines)
+        const BADGE_TOP = TITLE_TOP + TITLE_H + 6;  // = 42
+        const BADGE_H = 18;
+        const DESC_TOP = BADGE_TOP + BADGE_H + 6;  // = 66
+        const BADGE_CY = CARD_H / 2;               // = 59  (badge circle midpoint)
 
-        currentY += 60; // Reduced spacing
-
-        // Recommendations
         const recommendations = result.recommendations || [];
+        // How many cards fit on the page?
+        const maxCards = Math.min(
+            recommendations.length,
+            Math.floor((footerZone - currentY) / (CARD_H + CARD_GAP))
+        );
 
-        if (recommendations.length > 0) {
-            recommendations.slice(0, 5).forEach((rec, idx) => {
-                // Outer Container (Compacted for fit)
+        recommendations.slice(0, maxCards).forEach((rec, idx) => {
+            // ── Card background ────────────────────────────────────────────────
+            doc.save();
+            doc.fillColor('#ffffff')
+                .roundedRect(40, currentY, pageWidth - 80, CARD_H, 8)
+                .fill().strokeColor('#e2e8f0').lineWidth(0.6).stroke();
+            doc.restore();
+
+            // ── Number badge (fixed vertical centre) ───────────────────────────
+            const badgeCY = currentY + BADGE_CY;
+            doc.save();
+            doc.fillColor(colors.primary).circle(64, badgeCY, 14).fill();
+            doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(11)
+                .text(`${idx + 1}`, 57, badgeCY - 7, { width: 14, align: 'center' });
+            doc.restore();
+
+            // ── Title (2-line max, full wrap, NO ellipsis) ─────────────────────
+            doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(10)
+                .text((rec.title || 'Recommendation').toUpperCase(),
+                    90, currentY + TITLE_TOP,
+                    { width: contentW, height: TITLE_H + 4 });
+
+            // ── Badges ─────────────────────────────────────────────────────────
+            let badgeX = 90;
+            const badgeY = currentY + BADGE_TOP;
+
+            if (rec.potentialSavings) {
                 doc.save();
-                doc.fillColor('#ffffff')
-                    .roundedRect(40, currentY, pageWidth - 80, 105, 10) // Fixed height to 105
-                    .fill()
-                    .strokeColor('#e2e8f0')
-                    .lineWidth(0.6)
-                    .stroke();
+                doc.fillColor('#059669').fillOpacity(0.12)
+                    .roundedRect(badgeX, badgeY, 118, BADGE_H, 8).fill();
                 doc.restore();
+                doc.fillColor('#064e3b').font('Helvetica-Bold').fontSize(8)
+                    .text(`Potential Savings: $${Number(rec.potentialSavings).toLocaleString()}`,
+                        badgeX + 8, badgeY + 5);
+                badgeX += 125;
+            }
 
-                // Number Badge - Balanced Size
+            if (rec.difficulty) {
+                const diffBg = rec.difficulty === 'easy' ? '#10b981' : rec.difficulty === 'moderate' ? '#f59e0b' : '#ef4444';
+                const diffText = rec.difficulty === 'easy' ? '#064e3b' : rec.difficulty === 'moderate' ? '#92400e' : '#7f1d1d';
                 doc.save();
-                doc.fillColor(colors.primary).circle(65, currentY + 34, 16).fill();
-                doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(12).text(`${idx + 1}`, 58, currentY + 28, { width: 14, align: 'center' });
+                doc.fillColor(diffBg).fillOpacity(0.12)
+                    .roundedRect(badgeX, badgeY, 102, BADGE_H, 8).fill();
                 doc.restore();
+                doc.fillColor(diffText).font('Helvetica-Bold').fontSize(8)
+                    .text(`LEVEL: ${rec.difficulty.toUpperCase()}`,
+                        badgeX + 5, badgeY + 5, { width: 92, align: 'center' });
+            }
 
-                // Recommendation Header
-                doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(11.5);
-                doc.text(rec.title.toUpperCase(), 95, currentY + 16, { width: pageWidth - 160 });
+            // ── Description: 2-3 complete sentences, 3 lines max ───────────────
+            // _toCompleteSentence(text, 250) reliably fits 3 lines at 9.5px
+            const descText = this._toCompleteSentence(rec.description || '', 250);
+            doc.fillColor('#1e293b').font('Helvetica').fontSize(9.5)
+                .text(descText, 90, currentY + DESC_TOP,
+                    { width: contentW, lineGap: 2, height: 44 });
 
-                // Savings & Difficulty Badges (Compact Alignment)
-                let badgeX = 95;
-                const badgeY = currentY + 36; // Lowered to avoid header
-                if (rec.potentialSavings) {
-                    doc.save();
-                    doc.fillColor('#059669').fillOpacity(0.12).roundedRect(badgeX, badgeY, 125, 18, 9).fill();
-                    doc.restore();
-
-                    doc.fillColor('#064e3b').font('Helvetica-Bold').fontSize(8.5).text(`Potential Savings: $${rec.potentialSavings.toLocaleString()}`, badgeX + 10, badgeY + 5);
-                    badgeX += 135;
-                }
-
-                if (rec.difficulty) {
-                    const diffBg = rec.difficulty === 'easy' ? '#10b981' : rec.difficulty === 'moderate' ? '#f59e0b' : '#ef4444';
-                    const diffText = rec.difficulty === 'easy' ? '#064e3b' : rec.difficulty === 'moderate' ? '#92400e' : '#7f1d1d'; // Darkened moderate
-                    doc.save();
-                    // Increased width to 110 to fit "LEVEL: MODERATE/COMPLEX" on one line
-                    doc.fillColor(diffBg).fillOpacity(0.12).roundedRect(badgeX, badgeY, 110, 18, 9).fill();
-                    doc.restore();
-
-                    doc.fillColor(diffText).font('Helvetica-Bold').fontSize(8.5).text(`LEVEL: ${rec.difficulty.toUpperCase()}`, badgeX + 5, badgeY + 5, { width: 100, align: 'center' });
-                }
-
-                // Body text (Optimized spacing)
-                doc.fillColor('#1e293b').font('Helvetica').fontSize(10);
-                doc.text(rec.description, 95, currentY + 62, {
-                    width: pageWidth - 160,
-                    lineGap: 3.5,
-                    maxLines: 2,
-                    ellipsis: true
-                });
-
-                currentY += 115; // Compacted cards
-            });
-        }
+            currentY += CARD_H + CARD_GAP;
+        });
 
         this.addFooter(doc, job.jobId);
     }
@@ -1608,21 +1701,21 @@ class ReportService {
         this.addHeader(doc, 8, tier, colors);
 
         const pageWidth = doc.page.width;
-        let currentY = 120;
+        let currentY = 140; // 25px clear gap below header separator at y=115
 
         // Page title
         doc.fillColor(colors.primary)
             .font('Helvetica-Bold')
-            .fontSize(28)
-            .text('Appendix', 40, currentY);
+            .fontSize(24)
+            .text('Appendix & Disclaimer', 40, currentY);
 
-        doc.moveTo(40, currentY + 38)
-            .lineTo(140, currentY + 38)
-            .lineWidth(4)
+        doc.moveTo(40, currentY + 32)
+            .lineTo(135, currentY + 32)
+            .lineWidth(3)
             .strokeColor(colors.primary)
             .stroke();
 
-        currentY += 70;
+        currentY += 55;
 
         // Methodology
         doc.fillColor(this.colors.neutral.dark)
@@ -1760,6 +1853,541 @@ class ReportService {
         });
     }
 
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // CHART HELPERS — Professional Graph Drawing Methods
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    /**
+     * Draw a circular gauge meter for a score 0–10
+     */
+    drawGaugeMeter(doc, cx, cy, radius, score) {
+        doc.save();
+        const maxScore = 10;
+        const normalized = Math.min(1, Math.max(0, score / maxScore));
+
+        // Background track arc (full 270° sweep from 225° to 135°)
+        const startAngleDeg = 225;
+        const sweepDeg = 270;
+        const toRad = (d) => (d * Math.PI) / 180;
+
+        const startAngle = toRad(startAngleDeg);
+        const endAngle = toRad(startAngleDeg + sweepDeg);
+        const fillAngle = toRad(startAngleDeg + sweepDeg * normalized);
+
+        // Background ring
+        doc.strokeColor('#e5e7eb').lineWidth(14).lineCap('round');
+        doc.arc(cx, cy, radius, startAngle, endAngle, false).stroke();
+
+        // Foreground colored arc
+        const gaugeColor = score >= 7 ? '#10b981' : score >= 5 ? '#f59e0b' : '#ef4444';
+        doc.strokeColor(gaugeColor).lineWidth(14).lineCap('round');
+        if (normalized > 0) {
+            doc.arc(cx, cy, radius, startAngle, fillAngle, false).stroke();
+        }
+
+        // Center score text
+        doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(30)
+            .text(score.toFixed(1), cx - radius, cy - 18, { width: radius * 2, align: 'center' });
+        doc.fillColor('#6b7280').font('Helvetica-Bold').fontSize(8)
+            .text('/ 10', cx - radius, cy + 16, { width: radius * 2, align: 'center' });
+
+        // Labels
+        doc.fillColor('#9ca3af').font('Helvetica').fontSize(7);
+        doc.text('0', cx - radius - 10, cy + radius * 0.55, { width: 20, align: 'center' });
+        doc.text('10', cx + radius - 10, cy + radius * 0.55, { width: 20, align: 'center' });
+
+        doc.restore();
+    }
+
+    /**
+     * Draw a professional donut chart — polygon-based for reliable PDF rendering.
+     * Each slice is drawn as a filled polygon approximating the arc (no arc() calls).
+     * A white centre hole gives the modern donut look.
+     */
+    drawPieChart(doc, cx, cy, radius, data) {
+        // Filter zero-value slices
+        const slices = data.filter(d => Math.abs(d.value) > 0);
+        const total = slices.reduce((s, d) => s + Math.abs(d.value), 0);
+
+        if (total === 0 || slices.length === 0) {
+            doc.save();
+            doc.fillColor('#f1f5f9').circle(cx, cy, radius).fill();
+            doc.strokeColor('#e2e8f0').lineWidth(1).circle(cx, cy, radius).stroke();
+            doc.fillColor('#94a3b8').font('Helvetica').fontSize(8)
+                .text('No data', cx - radius + 2, cy - 5, { width: radius * 2 - 4, align: 'center', lineBreak: false });
+            doc.restore();
+            return;
+        }
+
+        // Professional data-viz palette (well-separated, accessible)
+        const PALETTE = [
+            '#4f46e5',  // indigo
+            '#f97316',  // orange
+            '#10b981',  // emerald
+            '#f59e0b',  // amber
+            '#ec4899',  // pink
+            '#0ea5e9',  // sky-blue
+            '#84cc16',  // lime
+            '#8b5cf6',  // violet
+        ];
+
+        const STEPS = 72;  // polygon steps for a full circle → each 5°
+        const holeR = radius * 0.38;  // donut inner radius (38% of outer)
+
+        let startAngle = -Math.PI / 2;  // 12-o'clock start
+
+        // ── 1. Draw solid outer disc in background colour first (canvas bg) ──
+        doc.save();
+        doc.fillColor('#f8fafc').circle(cx, cy, radius).fill();
+        doc.restore();
+
+        // ── 2. Draw each slice as a polygon (fan from center) ─────────────────
+        slices.forEach((item, i) => {
+            const fraction = Math.abs(item.value) / total;
+            const sweep = fraction * 2 * Math.PI;
+            const endAngle = startAngle + sweep;
+            const color = item.color || PALETTE[i % PALETTE.length];
+            const numSteps = Math.max(2, Math.ceil(fraction * STEPS));
+
+            doc.save();
+            doc.fillColor(color);
+
+            // Fan polygon: center → arc points → close
+            doc.moveTo(cx, cy);
+            for (let s = 0; s <= numSteps; s++) {
+                const a = startAngle + (sweep * s) / numSteps;
+                doc.lineTo(cx + radius * Math.cos(a), cy + radius * Math.sin(a));
+            }
+            doc.closePath().fill();
+            doc.restore();
+
+            startAngle = endAngle;
+        });
+
+        // ── 3. White divider lines between slices ─────────────────────────────
+        startAngle = -Math.PI / 2;
+        slices.forEach(item => {
+            const fraction = Math.abs(item.value) / total;
+            doc.save();
+            doc.strokeColor('#ffffff').lineWidth(2.5)
+                .moveTo(cx, cy)
+                .lineTo(cx + radius * Math.cos(startAngle), cy + radius * Math.sin(startAngle))
+                .stroke();
+            doc.restore();
+            startAngle += fraction * 2 * Math.PI;
+        });
+
+        // ── 4. Donut hole (white filled circle in centre) ─────────────────────
+        doc.save();
+        doc.fillColor('#ffffff').circle(cx, cy, holeR).fill();
+        doc.restore();
+
+        // ── 5. Subtle ring shadow on inner hole edge ─────────────────────────
+        doc.save();
+        doc.strokeColor('#e2e8f0').lineWidth(1).circle(cx, cy, holeR).stroke();
+        doc.restore();
+
+        // ── 6. Percentage labels on each slice (outside the donut hole) ───────
+        startAngle = -Math.PI / 2;
+        slices.forEach((item, i) => {
+            const fraction = Math.abs(item.value) / total;
+            const sweep = fraction * 2 * Math.PI;
+            const midAngle = startAngle + sweep / 2;
+            const pct = Math.round(fraction * 100);
+            const color = item.color || PALETTE[i % PALETTE.length];
+
+            // Place label between hole edge and outer edge
+            const lr = holeR + (radius - holeR) * 0.54;
+            const lx = cx + lr * Math.cos(midAngle);
+            const ly = cy + lr * Math.sin(midAngle);
+
+            if (pct >= 6) {
+                doc.save();
+                doc.fillColor('#ffffff').font('Helvetica-Bold')
+                    .fontSize(pct >= 20 ? 9.5 : pct >= 10 ? 8.5 : 7.5)
+                    .text(`${pct}%`, lx - 17, ly - 5.5,
+                        { width: 34, align: 'center', lineBreak: false });
+                doc.restore();
+            }
+
+            startAngle += sweep;
+        });
+
+        // ── 7. Outer border ring ───────────────────────────────────────────────
+        doc.save();
+        doc.strokeColor('#e2e8f0').lineWidth(1).circle(cx, cy, radius).stroke();
+        doc.restore();
+    }
+
+
+    /**
+     * Draw a legend for a pie/bar chart (2-per-row, truncated to fit colWidth)
+     */
+    drawLegend(doc, x, y, data, colWidth) {
+        const SLICE_COLORS = ['#f97316', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'];
+        const ROW_H = 16;
+        data.forEach((item, i) => {
+            const color = item.color || SLICE_COLORS[i % SLICE_COLORS.length];
+            const lx = x + (i % 2) * (colWidth || 110);
+            const ly = y + Math.floor(i / 2) * ROW_H;
+
+            doc.save();
+            doc.fillColor(color).roundedRect(lx, ly + 3, 9, 9, 2).fill();
+            doc.restore();
+
+            // Cap text strictly to column width (~6px per char at 8pt)
+            const maxChars = Math.max(4, Math.floor(((colWidth || 110) - 14) / 5.5));
+            const label = (item.label || item.name || '').substring(0, maxChars);
+            doc.fillColor('#374151').font('Helvetica').fontSize(8)
+                .text(label, lx + 13, ly + 3, { width: (colWidth || 110) - 14, lineBreak: false });
+        });
+    }
+
+    /**
+     * Draw ranked horizontal bar chart — professional alignment, no overflow
+     */
+    drawHorizontalBarRanked(doc, x, y, width, data, barColor, maxBars) {
+        const nData = data.slice(0, maxBars || 6);
+        if (nData.length === 0) return;
+        const maxVal = Math.max(...nData.map(d => Math.abs(d.value)), 1);
+        const BAR_H = 20;
+        const GAP = 9;
+        const LABEL_W = 155;   // Fixed label column
+        const VAL_W = 72;      // Fixed value column
+        const BAR_W = width - LABEL_W - VAL_W - 10;
+        const barX = x + LABEL_W + 5;
+        const COLORS = ['#f97316', '#fb923c', '#fdba74', '#fed7aa', '#3b82f6', '#60a5fa'];
+
+        nData.forEach((item, idx) => {
+            const barY = y + idx * (BAR_H + GAP);
+            const fillW = Math.max(4, (Math.abs(item.value) / maxVal) * BAR_W);
+            const color = item.color || COLORS[idx % COLORS.length];
+
+            // Label — right-aligned, no line break, capped
+            const label = (item.label || '').substring(0, 30);
+            doc.fillColor('#374151').font('Helvetica').fontSize(8.5)
+                .text(label, x, barY + 5, { width: LABEL_W - 5, align: 'right', lineBreak: false });
+
+            // Bar rail
+            doc.save();
+            doc.fillColor('#eef2ff').roundedRect(barX, barY, BAR_W, BAR_H, 4).fill();
+            doc.restore();
+
+            // Bar fill
+            doc.save();
+            doc.fillColor(color).roundedRect(barX, barY, fillW, BAR_H, 4).fill();
+            doc.restore();
+
+            // Value — inside bar if wide, otherwise after bar
+            const valText = item.formatted || `$${Math.abs(item.value).toLocaleString()}`;
+            if (fillW > 58) {
+                doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(8)
+                    .text(valText, barX + 6, barY + 5, { width: fillW - 10, lineBreak: false });
+            } else {
+                doc.fillColor('#374151').font('Helvetica-Bold').fontSize(8)
+                    .text(valText, barX + fillW + 5, barY + 5, { width: VAL_W - 5, lineBreak: false });
+            }
+        });
+    }
+
+    /**
+     * Vertical savings bar chart — properly spaced, no overflow
+     */
+    drawSavingsChart(doc, x, y, width, height, recommendations) {
+        const recs = (recommendations || []).filter(r => r.potentialSavings > 0).slice(0, 5);
+        if (recs.length === 0) {
+            doc.fillColor('#9ca3af').font('Helvetica').fontSize(9)
+                .text('No savings data available.', x, y + height / 2 - 10, { width, align: 'center' });
+            return;
+        }
+
+        const maxSavings = Math.max(...recs.map(r => r.potentialSavings));
+        const LABEL_H = 28;  // Label zone below bars
+        const VAL_H = 14;    // Value zone above bars
+        const chartH = height - LABEL_H - VAL_H;
+        const STEP = Math.floor((width - 4) / recs.length);
+        const BAR_W = Math.min(38, STEP - 10);
+        const BAR_COLORS = ['#10b981', '#059669', '#047857', '#f59e0b', '#3b82f6'];
+
+        recs.forEach((rec, idx) => {
+            const barX = x + 2 + idx * STEP + Math.floor((STEP - BAR_W) / 2);
+            const barH = Math.max(4, (rec.potentialSavings / maxSavings) * chartH);
+            const barY = y + VAL_H + chartH - barH;
+            const color = BAR_COLORS[idx % BAR_COLORS.length];
+
+            // Bar
+            doc.save();
+            doc.fillColor(color).roundedRect(barX, barY, BAR_W, barH, 3).fill();
+            doc.restore();
+
+            // Value above bar — compact format
+            const savings = rec.potentialSavings >= 1000
+                ? `$${(rec.potentialSavings / 1000).toFixed(1)}k`
+                : `$${rec.potentialSavings}`;
+            doc.fillColor('#064e3b').font('Helvetica-Bold').fontSize(7)
+                .text(savings, barX - 4, barY - 11, { width: BAR_W + 8, align: 'center', lineBreak: false });
+
+            // Label below bar — capped to 10 chars
+            const title = (rec.title || '').substring(0, 10);
+            doc.fillColor('#6b7280').font('Helvetica').fontSize(7)
+                .text(title, barX - 4, y + VAL_H + chartH + 4,
+                    { width: BAR_W + 8, align: 'center', lineBreak: false });
+        });
+    }
+
+    /**
+     * Risk severity summary bars — fixed widths, no overflow
+     */
+    drawRiskSummaryBars(doc, x, y, width, redFlags) {
+        const severities = [
+            { key: 'critical', label: 'Critical', color: '#dc2626', bg: '#fee2e2' },
+            { key: 'high', label: 'High', color: '#ef4444', bg: '#fef2f2' },
+            { key: 'medium', label: 'Medium', color: '#f59e0b', bg: '#fffbeb' },
+            { key: 'low', label: 'Low', color: '#10b981', bg: '#ecfdf5' }
+        ];
+
+        const counts = {};
+        (redFlags || []).forEach(f => { const s = f.severity || 'medium'; counts[s] = (counts[s] || 0) + 1; });
+        const maxCount = Math.max(1, ...Object.values(counts));
+
+        const BAR_H = 22;
+        const GAP = 10;
+        const LABEL_W = 52;
+        const COUNT_W = 26;
+        const BAR_M = width - LABEL_W - COUNT_W - 12;
+
+        severities.forEach((sev, idx) => {
+            const cnt = counts[sev.key] || 0;
+            const barY = y + idx * (BAR_H + GAP);
+            const fillW = cnt > 0 ? Math.max(8, (cnt / maxCount) * BAR_M) : 0;
+            const barX = x + LABEL_W + 4;
+
+            doc.fillColor('#374151').font('Helvetica-Bold').fontSize(8.5)
+                .text(sev.label, x, barY + 6, { width: LABEL_W, align: 'right', lineBreak: false });
+
+            // Rail
+            doc.save();
+            doc.fillColor(sev.bg).roundedRect(barX, barY, BAR_M, BAR_H, 4).fill();
+            doc.restore();
+
+            // Fill
+            if (fillW > 0) {
+                doc.save();
+                doc.fillColor(sev.color).roundedRect(barX, barY, fillW, BAR_H, 4).fill();
+                doc.restore();
+            }
+
+            // Count
+            doc.fillColor(cnt > 0 ? sev.color : '#9ca3af').font('Helvetica-Bold').fontSize(11)
+                .text(String(cnt), barX + BAR_M + 6, barY + 4, { width: COUNT_W, lineBreak: false });
+        });
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // PAGE: Data Visualizations
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    /**
+     * PAGE: Data Visualizations — Professional Charts Page
+     * Inserted between Cost Breakdown and Risk Dashboard.
+     */
+    async generatePageDataVisualizations(doc, job, result, tier, colors) {
+        doc.addPage();
+        this.addHeader(doc, 'VIZ', tier, colors);
+
+        const pageWidth = doc.page.width;
+        const pageHeight = doc.page.height;
+        const margin = 40;
+        const contentW = pageWidth - margin * 2;  // 515
+        const footerY = pageHeight - 70;
+        let currentY = 130;
+
+        // ── Page title
+        doc.fillColor(colors.primary).font('Helvetica-Bold').fontSize(22)
+            .text('Analytics & Data Visualizations', margin, currentY);
+        doc.moveTo(margin, currentY + 30).lineTo(margin + 210, currentY + 30)
+            .lineWidth(3).strokeColor(colors.primary).stroke();
+        doc.fillColor('#64748b').font('Helvetica').fontSize(9)
+            .text('AI-generated visual intelligence extracted from the submitted quote document.',
+                margin, currentY + 38, { width: contentW });
+        currentY += 62;
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ROW 1  (height=190):
+        //   LEFT   (col 0, w=160) : Quote Integrity Gauge
+        //   MIDDLE (col 1, w=180) : Cost Distribution Pie  + legend below
+        //   RIGHT  (col 2, w=155) : Quick-stats summary boxes
+        // ═══════════════════════════════════════════════════════════════════
+        const ROW1_H = 195;
+        const COL_GAP = 10;
+        const colW = [158, 185, contentW - 158 - 185 - COL_GAP * 2];  // [158, 185, 152]
+        const colX = [
+            margin,
+            margin + colW[0] + COL_GAP,
+            margin + colW[0] + COL_GAP + colW[1] + COL_GAP
+        ];
+
+        // Helper: draw a card background
+        const drawCard = (x, y, w, h, borderColor) => {
+            doc.save();
+            doc.fillColor('#ffffff').roundedRect(x, y, w, h, 7)
+                .fill().strokeColor(borderColor || '#e2e8f0').lineWidth(0.5).stroke();
+            doc.restore();
+        };
+
+        // Helper: card header label
+        const cardLabel = (text, x, y, w) => {
+            doc.fillColor(colors.primary).font('Helvetica-Bold').fontSize(8)
+                .text(text, x + 10, y + 10, { width: w - 20, characterSpacing: 0.3 });
+        };
+
+        // ── COL 0: Gauge ──────────────────────────────────────────────────
+        drawCard(colX[0], currentY, colW[0], ROW1_H);
+        cardLabel('QUOTE INTEGRITY SCORE', colX[0], currentY, colW[0]);
+
+        const verdictScore = result.verdictScore || 0;
+        const scoreNorm = verdictScore > 10 ? verdictScore / 10 : verdictScore;
+        const gaugeCX = colX[0] + colW[0] / 2;
+        const gaugeCY = currentY + 28 + 52;  // top-pad 28 + radius 52
+        this.drawGaugeMeter(doc, gaugeCX, gaugeCY, 52, scoreNorm);
+
+        const scoreLabel = scoreNorm >= 8 ? 'EXCELLENT' : scoreNorm >= 6 ? 'GOOD' : scoreNorm >= 4 ? 'AVERAGE' : 'NEEDS REVIEW';
+        const scoreLabelColor = scoreNorm >= 8 ? '#10b981' : scoreNorm >= 6 ? '#f59e0b' : '#ef4444';
+        doc.save();
+        doc.fillColor(scoreLabelColor).fillOpacity(0.12)
+            .roundedRect(colX[0] + 20, currentY + ROW1_H - 34, colW[0] - 40, 22, 11).fill();
+        doc.restore();
+        doc.fillColor(scoreLabelColor).font('Helvetica-Bold').fontSize(9)
+            .text(scoreLabel, colX[0] + 20, currentY + ROW1_H - 29, { width: colW[0] - 40, align: 'center' });
+
+        // ── COL 1: Pie chart + legend below ───────────────────────────────
+        drawCard(colX[1], currentY, colW[1], ROW1_H);
+        cardLabel('COST BY CATEGORY', colX[1], currentY, colW[1]);
+
+        // Build category map — skip Total/Subtotal rows (they double-count),
+        // sanitize names containing pipe | slash / ampersand &
+        const TOTAL_PAT = /total|subtotal|grand\s*total|gst\s*total/i;
+        const costByCategory = {};
+        (result.costBreakdown || []).forEach(item => {
+            const rawCat = (item.category || 'Other').trim();
+            if (TOTAL_PAT.test(rawCat)) return;  // skip aggregation rows
+
+            // Strip everything after '|', '/', '+', '&' then trim
+            const cleanCat = rawCat.split(/[|/+&]/)[0].trim() || 'Other';
+
+            // Proper display casing
+            const key = cleanCat.charAt(0).toUpperCase() + cleanCat.slice(1).toLowerCase();
+            costByCategory[key] = (costByCategory[key] || 0) + (item.totalPrice || item.amount || 0);
+        });
+        const PIE_COLORS = ['#f97316', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
+        const pieData = Object.entries(costByCategory).slice(0, 6).map(([k, v], i) => ({
+            label: k,
+            value: v,
+            color: PIE_COLORS[i % PIE_COLORS.length]
+        }));
+
+        const pieRadius = 46;
+        const pieCX = colX[1] + colW[1] / 2;
+        const pieCY = currentY + 30 + pieRadius;
+        this.drawPieChart(doc, pieCX, pieCY, pieRadius, pieData);
+
+        // Legend BELOW pie (2-per-row, truncated to colW)
+        const legendStartY = pieCY + pieRadius + 10;
+        if (pieData.length > 0) {
+            const legItemW = Math.floor(colW[1] / 2) - 2;
+            this.drawLegend(doc, colX[1] + 6, legendStartY, pieData, legItemW);
+        }
+
+        // ── COL 2: Quick stats ─────────────────────────────────────────────
+        drawCard(colX[2], currentY, colW[2], ROW1_H);
+        cardLabel('KEY METRICS', colX[2], currentY, colW[2]);
+
+        const totalCost = result.overallCost || result.costs?.overall ||
+            (result.costBreakdown || []).reduce((s, i) => s + (i.totalPrice || i.amount || 0), 0);
+        const totalFlags = (result.redFlags || []).length;
+        const confidence = result.confidence || 95;
+        const flagRisk = totalFlags > 3 ? 'High' : totalFlags > 1 ? 'Medium' : 'Low';
+        const flagColor = totalFlags > 3 ? '#ef4444' : totalFlags > 1 ? '#f59e0b' : '#10b981';
+
+        const kStats = [
+            { label: 'Total Cost', value: `$${totalCost.toLocaleString()}`, color: colors.primary },
+            { label: 'Risk Level', value: flagRisk, color: flagColor },
+            { label: 'Red Flags', value: String(totalFlags), color: flagColor },
+            { label: 'Confidence', value: `${confidence}%`, color: '#3b82f6' }
+        ];
+
+        kStats.forEach((stat, i) => {
+            const statY = currentY + 26 + i * 40;
+            // Subtle divider except first
+            if (i > 0) {
+                doc.moveTo(colX[2] + 10, statY - 4)
+                    .lineTo(colX[2] + colW[2] - 10, statY - 4)
+                    .lineWidth(0.4).strokeColor('#f1f5f9').stroke();
+            }
+            doc.fillColor('#94a3b8').font('Helvetica').fontSize(7.5)
+                .text(stat.label.toUpperCase(), colX[2] + 10, statY, { characterSpacing: 0.2 });
+            doc.fillColor(stat.color).font('Helvetica-Bold').fontSize(15)
+                .text(stat.value, colX[2] + 10, statY + 9, { width: colW[2] - 20, lineBreak: false });
+        });
+
+        currentY += ROW1_H + 12;
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ROW 2 (height=168): Top Cost Line Items — full width ranked bar chart
+        // ═══════════════════════════════════════════════════════════════════
+        const ROW2_H = 175;
+        drawCard(margin, currentY, contentW, ROW2_H);
+        cardLabel('TOP COST LINE ITEMS — RANKED BY VALUE', margin, currentY, contentW);
+
+        const sortedItems = (result.costBreakdown || []).slice()
+            .sort((a, b) => (b.totalPrice || b.amount || 0) - (a.totalPrice || a.amount || 0));
+        const barData = sortedItems.slice(0, 6).map(item => ({
+            label: (item.description || item.category || 'Item').replace(/[\r\n]+/g, ' '),
+            value: item.totalPrice || item.amount || 0
+        }));
+
+        if (barData.length > 0) {
+            this.drawHorizontalBarRanked(doc, margin + 8, currentY + 28, contentW - 16, barData, colors.primary, 6);
+        } else {
+            doc.fillColor('#9ca3af').font('Helvetica').fontSize(9)
+                .text('No cost breakdown data available for this quote.',
+                    margin, currentY + ROW2_H / 2 - 9, { width: contentW, align: 'center' });
+        }
+
+        currentY += ROW2_H + 12;
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ROW 3: Savings Potential (left 50%) | Risk Severity Breakdown (right 50%)
+        // ═══════════════════════════════════════════════════════════════════
+        const ROW3_H = Math.max(130, Math.min(footerY - currentY - 6, 148));
+        const halfW = Math.floor(contentW / 2) - 5;
+        const rightX = margin + halfW + 10;
+
+        // Left: Savings chart
+        drawCard(margin, currentY, halfW, ROW3_H);
+        cardLabel('POTENTIAL SAVINGS BY ACTION', margin, currentY, halfW);
+        this.drawSavingsChart(doc, margin + 8, currentY + 26, halfW - 16, ROW3_H - 34, result.recommendations);
+
+        // Right: Risk bars
+        drawCard(rightX, currentY, halfW, ROW3_H);
+
+        // Header + total badge
+        doc.fillColor(colors.primary).font('Helvetica-Bold').fontSize(8)
+            .text('RISK SEVERITY BREAKDOWN', rightX + 10, currentY + 10, { characterSpacing: 0.3 });
+        const riskBadgeColor = totalFlags > 3 ? '#ef4444' : totalFlags > 1 ? '#f59e0b' : '#10b981';
+        doc.save();
+        doc.fillColor(riskBadgeColor).fillOpacity(0.13)
+            .roundedRect(rightX + halfW - 63, currentY + 7, 52, 18, 9).fill();
+        doc.restore();
+        doc.fillColor(riskBadgeColor).font('Helvetica-Bold').fontSize(8)
+            .text(`${totalFlags} FLAG${totalFlags !== 1 ? 'S' : ''}`, rightX + halfW - 62, currentY + 11,
+                { width: 50, align: 'center' });
+
+        this.drawRiskSummaryBars(doc, rightX + 8, currentY + 30, halfW - 16, result.redFlags);
+
+        this.addFooter(doc, job.jobId);
+    }
+
     /**
      * Draw a radar chart for risk profiles (Premium only)
      */
@@ -1853,12 +2481,12 @@ class ReportService {
     async generatePageVisualIntelligence(doc, job, result, tier, colors) {
         doc.addPage();
         this.addHeader(doc, 3, tier, colors);
-        let currentY = 120;
+        let currentY = 110; // 20px gap from 90px header
 
         doc.fillColor(this.colors.neutral.dark).font('Helvetica-Bold').fontSize(24).text('Visual Risk Intelligence', 40, currentY);
         doc.moveTo(40, currentY + 32).lineTo(140, currentY + 32).lineWidth(3).strokeColor(colors.primary).stroke();
 
-        currentY += 60;
+        currentY += 55;
 
         // Intro
         doc.fillColor(this.colors.neutral.gray).font('Helvetica').fontSize(11)
@@ -1906,12 +2534,12 @@ class ReportService {
     async generatePageConstructionIntelligence(doc, job, result, tier, colors) {
         doc.addPage();
         this.addHeader(doc, 7, tier, colors);
-        let currentY = 120;
+        let currentY = 110; // 20px gap from 90px header
 
         doc.fillColor(this.colors.neutral.dark).font('Helvetica-Bold').fontSize(24).text('Project Intelligence Roadmap', 40, currentY);
         doc.moveTo(40, currentY + 32).lineTo(140, currentY + 32).lineWidth(3).strokeColor(colors.primary).stroke();
 
-        currentY += 60;
+        currentY += 55;
 
         doc.fillColor(this.colors.neutral.gray).font('Helvetica').fontSize(11)
             .text('Extrapolated project timeline and phase distribution based on the quoted scope of work. Use this as a benchmark for your construction schedule.', 40, currentY, { width: 500 });

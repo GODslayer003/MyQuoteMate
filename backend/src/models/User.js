@@ -135,13 +135,6 @@ const userSchema = new mongoose.Schema({
   deletedAt: {
     type: Date
   },
-  loginAttempts: {
-    type: Number,
-    default: 0
-  },
-  lockUntil: {
-    type: Date
-  },
   googleId: {
     type: String,
     sparse: true,
@@ -173,11 +166,6 @@ userSchema.index({ role: 1 });
 // Virtual for full name
 userSchema.virtual('fullName').get(function () {
   return `${this.firstName} ${this.lastName}`.trim();
-});
-
-// Virtual for account locked status
-userSchema.virtual('isLocked').get(function () {
-  return !!(this.lockUntil && this.lockUntil > Date.now());
 });
 
 // Virtual for active subscription
@@ -217,30 +205,6 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 // Method to update last login
 userSchema.methods.updateLastLogin = function () {
   this.security.lastLoginAt = new Date();
-  return this.save();
-};
-
-// Method to increment login attempts
-userSchema.methods.incLoginAttempts = function () {
-  if (this.lockUntil && this.lockUntil < Date.now()) {
-    this.loginAttempts = 1;
-    this.lockUntil = undefined;
-    return this.save();
-  }
-
-  this.loginAttempts += 1;
-
-  if (this.loginAttempts >= 5 && !this.isLocked) {
-    this.lockUntil = new Date(Date.now() + 5 * 60 * 60 * 1000); // 5 hours
-  }
-
-  return this.save();
-};
-
-// Method to reset login attempts
-userSchema.methods.resetLoginAttempts = function () {
-  this.loginAttempts = 0;
-  this.lockUntil = undefined;
   return this.save();
 };
 

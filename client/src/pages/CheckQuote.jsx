@@ -283,7 +283,7 @@ const CheckQuote = () => {
     const isPremiumTier = (user?.subscription?.plan?.toLowerCase() === 'premium') ||
       (selectedPricingTier?.tier?.toLowerCase() === 'premium');
 
-    const analysisTier = isAuthenticated ? (user?.subscription?.plan?.toLowerCase() || 'free') : 'free';
+    const analysisTier = isAuthenticated ? (user?.subscription?.plan || 'Free') : 'Free';
 
     try {
       if (isPremiumTier || isComparisonMode) {
@@ -323,7 +323,7 @@ const CheckQuote = () => {
     const isPremiumTier = (user?.subscription?.plan?.toLowerCase() === 'premium') ||
       (selectedPricingTier?.tier?.toLowerCase() === 'premium');
 
-    const analysisTier = isAuthenticated ? (user?.subscription?.plan?.toLowerCase() || 'free') : 'free';
+    const analysisTier = isAuthenticated ? (user?.subscription?.plan || 'Free') : 'Free';
 
     if (isPremiumTier || isComparisonMode) {
       if (files.length < 2) {
