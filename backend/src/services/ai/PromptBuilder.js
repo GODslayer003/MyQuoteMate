@@ -135,11 +135,11 @@ OUTPUT JSON SCHEMA (PAID TIERS):
     "rejectionMessage": "If isRelevant is false, provide: 'This platform is not for [Topic]'"
   },
   "analysis": {
-    "summary": "Comprehensive 5-8 sentence professional summary covering scope, quality, and overall vibe of the quote.",
+    "summary": "Professional summary covering scope, quality, and vibe. CRUCIAL: Must be extremely concise. MAXIMUM 600 CHARACTERS. Ensure sentences are fully complete and punchy.",
     "verdict": {
       "label": "e.g., Great Value, Within Range, High Cost, Vague Quote",
       "score": 8.5,
-      "reasoning": "EXPLAIN IN 2-3 SENTENCES. Ground your analysis strictly in 2026 Australian market rates. The tone of this text MUST MATCH the numerical score exactly (0-10 scale)."
+      "reasoning": "EXPLAIN IN EXACTLY 3 SENTENCES. MAXIMUM 450 CHARACTERS. Ground your analysis strictly in 2026 Australian market rates. The tone MUST MATCH the score."
     },
     "detailedReview": "A rigorous, page-by-page textual analysis (2-3 paragraphs) of the quote's technical aspects, pricing strategy, and scope clarity. Ensure 100% accurate correlation with the extracted total cost. This is for Standard/Premium users.",
     "overallCost": 12500,

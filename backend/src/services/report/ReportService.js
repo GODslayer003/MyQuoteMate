@@ -197,27 +197,61 @@ class ReportService {
         }
 
         let startAngle = -Math.PI / 2;
-        const thickness = radius * 0.35;
+        const thickness = Math.max(18, radius * 0.32);
+        const innerRadius = radius - thickness;
+
+        // Draw each segment with precise SVG paths for a premium, non-distorted look
+        const segmentGap = data.length > 1 ? 0.035 : 0; // Tiny professional gap between slices
 
         data.forEach((item, idx) => {
             const sliceAngle = (item.value / total) * 2 * Math.PI;
-            const endAngle = startAngle + sliceAngle;
+            if (sliceAngle <= 0) return;
+
+            // Apply gap adjustments
+            let currentStart = startAngle + (segmentGap / 2);
+            let currentEnd = startAngle + sliceAngle - (segmentGap / 2);
+
+            // Prevent negative slice ranges if value is extremely small
+            if (currentEnd <= currentStart) {
+                currentStart = startAngle;
+                currentEnd = startAngle + sliceAngle;
+            }
 
             doc.save();
             doc.fillColor(item.color || '#cbd5e1');
 
-            const innerRadius = radius - thickness;
+            if (sliceAngle >= 2 * Math.PI - 0.01) {
+                // Full circle handling with even-odd cutout
+                doc.circle(x, y, radius);
+                doc.circle(x, y, innerRadius);
+                doc.fill('even-odd');
+            } else {
+                // Standard annular wedge using precise SVG arc commands
+                const startX = x + radius * Math.cos(currentStart);
+                const startY = y + radius * Math.sin(currentStart);
+                const endX = x + radius * Math.cos(currentEnd);
+                const endY = y + radius * Math.sin(currentEnd);
 
-            // Using arc methods for professional segment drawing
-            doc.moveTo(x + radius * Math.cos(startAngle), y + radius * Math.sin(startAngle))
-                .arc(x, y, radius, startAngle, endAngle, false)
-                .lineTo(x + innerRadius * Math.cos(endAngle), y + innerRadius * Math.sin(endAngle))
-                .arc(x, y, innerRadius, endAngle, startAngle, true)
-                .fill();
+                const innerStartX = x + innerRadius * Math.cos(currentEnd);
+                const innerStartY = y + innerRadius * Math.sin(currentEnd);
+                const innerEndX = x + innerRadius * Math.cos(currentStart);
+                const innerEndY = y + innerRadius * Math.sin(currentStart);
+
+                const largeArcFlag = (currentEnd - currentStart) > Math.PI ? 1 : 0;
+
+                const pathData = `M ${startX} ${startY} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${endX} ${endY} L ${innerStartX} ${innerStartY} A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 0 ${innerEndX} ${innerEndY} Z`;
+
+                doc.path(pathData).fill();
+            }
 
             doc.restore();
-            startAngle = endAngle;
+            startAngle += sliceAngle;
         });
+
+        // Draw outer ring for crispness
+        doc.save();
+        doc.strokeColor('#e2e8f0').lineWidth(1.2).circle(x, y, radius + 2).stroke();
+        doc.restore();
 
         // Center text (Total)
         doc.fillColor('#111827')
@@ -304,7 +338,9 @@ class ReportService {
         // Calculate category totals
         const categories = {};
         (costBreakdown || []).forEach(item => {
-            const cat = (item.category || 'Other').toUpperCase();
+            let cat = (item.category || 'Other').toUpperCase();
+            if (cat === 'TOTAL' || cat === 'GRAND TOTAL' || cat === 'SUB TOTAL') return; // Exclude aggregate rows from pie/bar charts
+            cat = cat.replace(/[|/_]/g, ' & '); // Fix bleeds like MATERIALS|EQUIPMENT
             categories[cat] = (categories[cat] || 0) + (item.totalPrice || item.amount || 0);
         });
 
@@ -404,31 +440,30 @@ class ReportService {
                 await this.generatePage1Cover(doc, job, result, tier, colors, clientInfo);
 
                 // Subsequent pages start with doc.addPage() inside their methods
-                // Page 2: Executive Summary
-                await this.generatePage2Summary(doc, job, result, tier, colors, clientInfo);
-
-                // Page 3: Detailed Cost Breakdown
-                await this.generatePage3CostBreakdown(doc, job, result, tier, colors);
-
-                // Page 3.5: Data Visualizations (New Graphs Page)
+                // Page 2: Analytics & Data Visualizations (graphs immediately after cover)
                 await this.generatePageDataVisualizations(doc, job, result, tier, colors);
 
-                // Page 4: Risk Analytics Dashboard (New Dedicated Graph Page)
+                // Page 3: Executive Summary
+                await this.generatePage2Summary(doc, job, result, tier, colors, clientInfo);
+
+                // Page 4: Detailed Cost Breakdown
+                await this.generatePage3CostBreakdown(doc, job, result, tier, colors);
+
+                // Page 5: Risk Analytics Dashboard
                 await this.generatePage4RiskDashboard(doc, job, result, tier, colors);
 
-                // Page 5: Critical Red Flags & Mitigation
+                // Page 6: Critical Red Flags & Mitigation
                 await this.generatePage5RiskList(doc, job, result, tier, colors);
 
-                // Page 6: Market Comparison & Benchmarking
+                // Page 7: Market Comparison & Benchmarking
                 await this.generatePage6Benchmarking(doc, job, result, tier, colors);
 
                 // OPTIONAL: Multi-Quote Comparison (Premium Only)
-                // Always include for Premium, even if data is pending
                 if (tier === 'premium') {
                     await this.generatePageComparison(doc, job, result, tier, colors);
                 }
 
-                // Page 7+: Strategic Recommendations
+                // Page 8+: Strategic Recommendations
                 await this.generatePage7Recommendations(doc, job, result, tier, colors);
 
                 // Final Page: Analytical Appendix
@@ -483,32 +518,42 @@ class ReportService {
         doc.restore();
 
         // Logo & Brand Section
-        const logoY = 7; // Vertically centered in 115px header
+        const logoY = 18; // Vertically centered in 115px header
         if (fs.existsSync(this.logoPath)) {
             try {
-                // Large prominent logo in the header
-                doc.image(this.logoPath, 40, logoY, { height: 100 });
-
-                // Vertical Divider
                 doc.save();
-                doc.moveTo(162, logoY + 5)
-                    .lineTo(162, logoY + 90)
+                // User forced height 250. To perfectly center it in the left box
+                // without changing their exact parameters, we scale the rendering context down slightly.
+                const scale = 0.65;
+                // Move so that the scaled (40, 18) fits perfectly centered on the left side
+                // Adjusted translation to (14, -32) to align the logo exactly with the 40pt left margin
+                doc.translate(14, -32);
+                doc.scale(scale);
+
+                // Large prominent logo in the header
+                doc.image(this.logoPath, 40, logoY, { height: 250 });
+                doc.restore();
+
+                // Vertical Divider — centered between the logo and text
+                doc.save();
+                doc.moveTo(195, 30)
+                    .lineTo(195, 85)
                     .lineWidth(0.5)
                     .strokeColor(this.colors.neutral.lightGray)
                     .stroke();
                 doc.restore();
 
-                // Brand Name
+                // Brand Name - made slightly smaller to ensure absolute no overlap
                 doc.fillColor(colors.primary)
                     .font('Helvetica-Bold')
-                    .fontSize(22)
-                    .text('MYQUOTEMATE', 180, logoY + 22, { characterSpacing: 3 });
+                    .fontSize(16.5)
+                    .text('MYQUOTEMATE', 210, 38, { characterSpacing: 1.5 });
 
                 // Subtitle
                 doc.fillColor(this.colors.neutral.gray)
                     .font('Helvetica')
-                    .fontSize(8.5)
-                    .text('2026 TECHNICAL ANALYSIS', 180, logoY + 52, { characterSpacing: 1.2 });
+                    .fontSize(7)
+                    .text('2026 TECHNICAL ANALYSIS', 210, 62, { characterSpacing: 1 });
             } catch (err) {
                 doc.fillColor(colors.primary)
                     .font('Helvetica-Bold')
@@ -904,16 +949,15 @@ class ReportService {
 
             currentY += 22;
 
-            // Clamp summary text to ~700 chars so it never overflows
+            // Let the text flow naturally without hard JS truncation. OpenAI length limits govern this.
             let summaryText = result.summary || 'Quote analysis completed successfully.';
-            const maxSummaryChars = 700;
-            if (summaryText.length > maxSummaryChars) {
-                summaryText = summaryText.substring(0, maxSummaryChars).trimEnd() + '…';
-            }
 
-            // Calculate available height for summary before footer
-            const verdictReservedHeight = result.verdictJustification ? 120 : 0;
-            const availableForSummary = footerZone - currentY - verdictReservedHeight - 10;
+            // Dynamically calculate actual text height to push the next section down accurately
+            const summaryHeight = doc.heightOfString(summaryText, {
+                width: pageWidth - 80,
+                align: 'justify',
+                lineGap: 3
+            });
 
             doc.fillColor('#334155')
                 .font('Helvetica')
@@ -921,12 +965,10 @@ class ReportService {
                 .text(summaryText, 40, currentY, {
                     width: pageWidth - 80,
                     align: 'justify',
-                    lineGap: 3,
-                    height: availableForSummary,
-                    ellipsis: true
+                    lineGap: 3
                 });
 
-            currentY = doc.y + 14;
+            currentY += summaryHeight + 20;
         }
 
         // ── Price Verdict ──────────────────────────────────────────────────────
@@ -938,33 +980,34 @@ class ReportService {
 
             currentY += 20;
 
-            // Clamp verdict text to ~420 chars
+            // Full completely rendered text
             let verdictText = result.verdictJustification;
-            const maxVerdictChars = 420;
-            if (verdictText.length > maxVerdictChars) {
-                verdictText = verdictText.substring(0, maxVerdictChars).trimEnd() + '…';
-            }
 
-            // Available height until footer
-            const availableVerdictH = Math.min(footerZone - currentY - 10, 95);
+            // Dynamically calculate the perfect height for the verdict box so it NEVER cuts off text
+            const textHeight = doc.heightOfString(verdictText, {
+                width: pageWidth - 110,
+                align: 'justify',
+                lineGap: 3
+            });
+            const verdictBoxHeight = textHeight + 26;
 
             doc.save();
             doc.fillColor(colors.primary)
                 .fillOpacity(0.05)
-                .roundedRect(40, currentY, pageWidth - 80, availableVerdictH, 6)
+                .roundedRect(40, currentY, pageWidth - 80, verdictBoxHeight, 6)
                 .fill();
             doc.restore();
 
             doc.fillColor(this.colors.neutral.dark)
                 .font('Helvetica')
                 .fontSize(10)
-                .text(verdictText, 55, currentY + 12, {
+                .text(verdictText, 55, currentY + 13, {
                     width: pageWidth - 110,
                     align: 'justify',
-                    lineGap: 3,
-                    height: availableVerdictH - 16,
-                    ellipsis: true
+                    lineGap: 3
                 });
+
+            currentY += verdictBoxHeight + 20;
         }
 
         this.addFooter(doc, job.jobId);
@@ -1014,8 +1057,9 @@ class ReportService {
             await doc.table(tableData, {
                 x: 40,
                 y: currentY,
+                padding: 8, // Proper spacing
                 divider: {
-                    header: { disabled: false, width: 1, opacity: 0.1 },
+                    header: { disabled: false, width: 1.5, opacity: 0.1 },
                     horizontal: { disabled: false, width: 0.5, opacity: 0.05 }
                 },
                 prepareHeader: () => {
@@ -1025,6 +1069,14 @@ class ReportService {
                     return doc;
                 },
                 prepareRow: (row, indexColumn, indexRow, rectRow, rectCell) => {
+                    // Subtle alternating row colors
+                    if (indexColumn === 0) {
+                        doc.save();
+                        doc.fillColor(indexRow % 2 === 0 ? '#fafafa' : '#ffffff')
+                            .rect(rectRow.x, rectRow.y, rectRow.width, rectRow.height)
+                            .fill();
+                        doc.restore();
+                    }
                     doc.font('Helvetica')
                         .fontSize(10)
                         .fillColor(this.colors.neutral.dark);
@@ -1032,13 +1084,14 @@ class ReportService {
                 }
             });
 
-            currentY = doc.y + 30;
+            currentY = doc.y + 35; // increased gap after table
 
             // Add cost distribution chart if space available
             // Compute actual chart height: categories × (barHeight + spacing)
             const categories = {};
             costItems.forEach(item => {
-                const cat = (item.category || 'Other').toUpperCase();
+                let cat = (item.category || 'Other').toUpperCase();
+                if (cat === 'TOTAL' || cat === 'GRAND TOTAL' || cat === 'SUB TOTAL') return; // Exclude aggregates
                 categories[cat] = (categories[cat] || 0) + (item.totalPrice || item.amount || 0);
             });
             const numCategories = Object.keys(categories).length;
@@ -1071,21 +1124,30 @@ class ReportService {
             costItems.reduce((sum, item) => sum + (item.totalPrice || item.amount || 0), 0);
 
         doc.save();
+        // Modern container
         doc.fillColor(colors.primary)
-            .fillOpacity(0.1)
-            .roundedRect(40, currentY, pageWidth - 80, 60, 8)
+            .fillOpacity(0.06)
+            .roundedRect(40, currentY, pageWidth - 80, 75, 8)
             .fill();
         doc.restore();
 
-        doc.fillColor(this.colors.neutral.dark)
+        // Left accent bar
+        doc.save();
+        doc.fillColor(colors.primary)
+            // PDFKit roundedRect only accepts a primitive number for radius, using 8
+            .roundedRect(40, currentY, 6, 75, 8)
+            .fill();
+        doc.restore();
+
+        doc.fillColor(this.colors.neutral.gray)
             .font('Helvetica-Bold')
-            .fontSize(13)
-            .text('TOTAL QUOTE VALUE', 60, currentY + 15);
+            .fontSize(10)
+            .text('TOTAL QUOTE VALUE', 65, currentY + 18, { characterSpacing: 1.5 });
 
         doc.fillColor(colors.primary)
             .font('Helvetica-Bold')
-            .fontSize(26)
-            .text(`$${totalCost.toLocaleString()} AUD`, 60, currentY + 35);
+            .fontSize(28)
+            .text(`$${totalCost.toLocaleString()} AUD`, 65, currentY + 36);
 
         this.addFooter(doc, job.jobId);
     }
@@ -1170,17 +1232,27 @@ class ReportService {
 
         // Analytics Insight Box
         doc.save();
-        doc.fillColor(colors.primary).fillOpacity(0.06).roundedRect(40, currentY, pageWidth - 80, 100, 8).fill();
+        const boxHeight = 115;
+        doc.fillColor(colors.primary).fillOpacity(0.06).roundedRect(40, currentY, pageWidth - 80, boxHeight, 8).fill();
         doc.restore();
 
         doc.fillColor(this.colors.neutral.dark).font('Helvetica-Bold').fontSize(11).text('STRATEGIC INSIGHT', 60, currentY + 15);
-        const insightText = riskScore > 60
-            ? 'HIGH RISK WARNING: Total quote exposure exceeds optimal thresholds. Immediate mitigation of critical items is required before contractual commitment.'
-            : riskScore > 30
-                ? 'MODERATE EXPOSURE: Standard industry risks identified. Most items can be resolved through minor specification adjustments.'
-                : 'OPTIMAL PROJECT HEALTH: Minimal risk profile detected. Quote reflects high structural integrity and market alignment.';
 
-        doc.fillColor('#111827').font('Helvetica').fontSize(10.5).text(insightText, 60, currentY + 35, { width: pageWidth - 140, lineGap: 4 });
+        let insightText = '';
+        if (riskScore > 60) {
+            insightText = 'CRITICAL RISK EXPOSURE DETECTED: The overarching quote profile exhibits substantial vulnerabilities that exceed acceptable operational parameters. Implementing robust mitigation strategies for identified critical bottlenecks is imperative. Proceeding without strategic realignment of these factors poses significant financial and structural risks to the overarching project lifecycle.';
+        } else if (riskScore > 30) {
+            insightText = 'MODERATE RISK EXPOSURE DETECTED: The analysis reveals standard industry risks present within the quotation boundaries. While foundational metrics remain acceptable, strategic optimization is recommended. The majority of identified items can be proactively resolved through deliberate specification adjustments, safeguarding overall project margin and delivery timelines.';
+        } else {
+            insightText = 'OPTIMAL PROJECT HEALTH VERIFIED: Comprehensive analysis indicates a nominal risk profile with robust operational viability. The quotation demonstrates high structural integrity, exact market alignment, and sound financial foresight. Execution of this project segment requires minimal structural remediation and is primed for seamless progression.';
+        }
+
+        doc.fillColor('#111827').font('Helvetica').fontSize(10.5).text(insightText, 60, currentY + 35, {
+            width: pageWidth - 120,
+            lineGap: 4,
+            height: boxHeight - 45,
+            ellipsis: false
+        });
 
         this.addFooter(doc, job.jobId);
     }
@@ -1277,7 +1349,7 @@ class ReportService {
 
         const pageWidth = doc.page.width;
         const centerX = pageWidth / 2;
-        let currentY = 110; // 20px gap from 90px header
+        let currentY = 135; // 20px clear gap below header separator at y=115
 
         // Page title
         doc.fillColor(colors.primary)
@@ -1326,7 +1398,7 @@ class ReportService {
         doc.fillColor('#111827') // Dark slate for premium feel
             .font('Helvetica-Oblique')
             .fontSize(10.5)
-            .text(((comp.winner?.reason || '').substring(0, 480).replace(/\s\S*$/, '')) || 'Comparison analysis pending.', 60, currentY + 38, {
+            .text(this._toCompleteSentence(comp.winner?.reason || 'Comparison analysis pending.', 500), 60, currentY + 38, {
                 width: pageWidth - 120,
                 align: 'justify',
                 lineGap: 4
@@ -1360,8 +1432,8 @@ class ReportService {
         doc.fillColor('#334155') // Darker than neutral dark
             .font('Helvetica')
             .fontSize(9.5)
-            // Truncate Methodology
-            .text(((comp.betterApproach || '').substring(0, 450).replace(/\s\S*$/, '')) || 'Analysis pending.', 55, currentY + 38, { width: (pageWidth - 140) / 2, lineGap: 3.5 });
+            // Truncate Methodology to proper complete sentences
+            .text(this._toCompleteSentence(comp.betterApproach || 'Analysis pending.', 400), 55, currentY + 38, { width: (pageWidth - 140) / 2, lineGap: 3.5 });
 
         // Differences Box
         doc.save();
@@ -1379,22 +1451,23 @@ class ReportService {
             .text('CRITICAL DIFFERENCES', 40 + (pageWidth - 100) / 2 + 35, currentY + 18);
 
         let diffY = currentY + 38;
-        // Limit to 5 differences and truncate each
-        comp.keyDifferences?.slice(0, 5).forEach(diff => {
-            const truncatedDiff = (diff || '').substring(0, 90).replace(/\s\S*$/, '');
+        // Limit to 4 differences and truncate each to a complete sentence
+        comp.keyDifferences?.slice(0, 4).forEach(diff => {
+            const cleanDiff = this._toCompleteSentence(diff || '', 100);
+            if (!cleanDiff) return; // skip if nothing left
             doc.fillColor('#4338ca')
                 .circle(40 + (pageWidth - 100) / 2 + 35, diffY + 4.5, 2)
                 .fill();
             doc.fillColor('#334155')
                 .font('Helvetica')
                 .fontSize(9)
-                .text(truncatedDiff, 40 + (pageWidth - 100) / 2 + 45, diffY, { width: (pageWidth - 160) / 2, lineGap: 2 });
+                .text(cleanDiff, 40 + (pageWidth - 100) / 2 + 45, diffY, { width: (pageWidth - 160) / 2, lineGap: 2 });
             diffY = doc.y + 7;
         });
 
         currentY += 195;
 
-        const boxHeight = 120; // Increased fixed height for bottom boxes
+        const boxHeight = 140; // Increased fixed height for bottom boxes to easily fit complete sentences
 
         // Value Assessment (Now Half Width)
         doc.save();
@@ -1414,7 +1487,7 @@ class ReportService {
         doc.fillColor('#111827')
             .font('Helvetica')
             .fontSize(9.5)
-            .text(((comp.valueAssessment || '').substring(0, 250).replace(/\s\S*$/, '')) || 'Analysis pending.', 60, currentY + 34, { width: (pageWidth - 140) / 2 - 20, lineGap: 3.5 });
+            .text(this._toCompleteSentence(comp.valueAssessment || 'Analysis pending.', 320), 60, currentY + 34, { width: (pageWidth - 140) / 2 - 20, lineGap: 3.5 });
 
         // Relative Pricing Box (Now Aligned Right)
         doc.save();
@@ -1434,7 +1507,7 @@ class ReportService {
         doc.fillColor('#111827')
             .font('Helvetica')
             .fontSize(9.5)
-            .text(((comp.relativePricing || '').substring(0, 250).replace(/\s\S*$/, '')) || 'Analysis pending.', centerX + 25, currentY + 34, { width: (pageWidth - 140) / 2 - 20, lineGap: 3.5 });
+            .text(this._toCompleteSentence(comp.relativePricing || 'Analysis pending.', 320), centerX + 25, currentY + 34, { width: (pageWidth - 140) / 2 - 20, lineGap: 3.5 });
 
         currentY += boxHeight + 15;
 
@@ -2024,7 +2097,7 @@ class ReportService {
      * Draw a legend for a pie/bar chart (2-per-row, truncated to fit colWidth)
      */
     drawLegend(doc, x, y, data, colWidth) {
-        const SLICE_COLORS = ['#f97316', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'];
+        const SLICE_COLORS = ['#4f46e5', '#f97316', '#10b981', '#f59e0b', '#ec4899', '#0ea5e9', '#84cc16', '#8b5cf6'];
         const ROW_H = 16;
         data.forEach((item, i) => {
             const color = item.color || SLICE_COLORS[i % SLICE_COLORS.length];

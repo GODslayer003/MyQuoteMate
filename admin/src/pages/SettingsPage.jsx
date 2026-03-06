@@ -70,6 +70,54 @@ const SettingsPage = () => {
 
   return (
     <div className="space-y-8">
+      {/* Risk Analytics Dashboard */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-8 mb-8">
+        <h1 className="text-3xl font-bold text-orange-600 mb-2">Risk Analytics Dashboard</h1>
+        <div className="flex flex-col md:flex-row items-center gap-8">
+          {/* Donut Chart */}
+          <div className="flex flex-col items-center">
+            <svg width="160" height="160" viewBox="0 0 160 160" className="drop-shadow-md">
+              <circle cx="80" cy="80" r="68" fill="#F7F8FA" stroke="#ECECEC" strokeWidth="2" />
+              {/* Orange Segment */}
+              <circle cx="80" cy="80" r="60" fill="none" stroke="#FFA726" strokeWidth="18" strokeDasharray="120 188" strokeDashoffset="0" />
+              {/* Red Segment */}
+              <circle cx="80" cy="80" r="60" fill="none" stroke="#FF5252" strokeWidth="18" strokeDasharray="68 188" strokeDashoffset="120" />
+              {/* White Segment (for separation, optional) */}
+              {/* <circle cx="80" cy="80" r="60" fill="none" stroke="#fff" strokeWidth="18" strokeDasharray="0 188" strokeDashoffset="188" /> */}
+              <text x="80" y="90" textAnchor="middle" fontSize="32" fill="#222" fontWeight="bold" style={{ fontFamily: 'Inter, sans-serif' }}>3</text>
+              <text x="80" y="110" textAnchor="middle" fontSize="14" fill="#888" fontWeight="600" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '2px' }}>TOTAL RISKS</text>
+            </svg>
+            <div className="mt-2 text-xs text-gray-500 font-medium tracking-wide">Financial | Technical | Quality</div>
+          </div>
+          {/* Executive Risk Exposure Index */}
+          <div className="flex-1">
+            <div className="mb-2 font-semibold text-gray-700">EXECUTIVE RISK EXPOSURE INDEX</div>
+            <div className="flex items-center gap-2">
+              <div className="flex h-4 w-full max-w-xs">
+                <div className="flex-1 bg-green-300 rounded-l-full" style={{ width: '30%' }}></div>
+                <div className="flex-1 bg-yellow-300" style={{ width: '30%' }}></div>
+                <div className="flex-1 bg-orange-300" style={{ width: '30%' }}></div>
+                <div className="flex-1 bg-red-300 rounded-r-full" style={{ width: '10%' }}></div>
+              </div>
+              <div className="ml-2">
+                <svg width="18" height="18"><polygon points="9,0 18,18 0,18" fill="#FF6B3D" /></svg>
+              </div>
+            </div>
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>LOW RISK</span>
+              <span>HIGH RISK</span>
+            </div>
+          </div>
+        </div>
+        {/* Strategic Insight */}
+        <div className="mt-8 p-5 bg-orange-50 border border-orange-200 rounded-xl">
+          <div className="font-bold text-orange-700 text-lg mb-1">STRATEGIC INSIGHT</div>
+          <div className="text-gray-700 text-sm leading-relaxed">
+            MODERATE EXPOSURE: Standard industry risks identified. Most items can be resolved through minor specification adjustments. <br />
+            <span className="block mt-2">This page provides a summary of risk analytics relevant to your current settings and profile. Please review the insights and adjust your specifications as needed to minimize exposure.</span>
+          </div>
+        </div>
+      </div>
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
