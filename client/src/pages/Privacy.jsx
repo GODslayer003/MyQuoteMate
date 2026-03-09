@@ -60,7 +60,7 @@ const Privacy = () => {
                 <div className={`w-14 h-14 bg-${item.color}-50 rounded-2xl flex items-center justify-center mb-6 text-${item.color}-600 group-hover:rotate-6 transition-transform`}>
                   {item.icon}
                 </div>
-                <h4 className="font-black text-gray-900 text-xl mb-3">{item.title}</h4>
+                <h4 className="font-bold text-gray-900 text-xl mb-3">{item.title}</h4>
                 <p className="text-gray-500 font-medium leading-relaxed">{item.desc}</p>
               </div>
             ))}
@@ -87,7 +87,7 @@ const Privacy = () => {
                   <CheckCircle2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="font-black text-gray-900 text-xl mb-1">{item.title}</h4>
+                  <h4 className="font-bold text-gray-900 text-xl mb-1">{item.title}</h4>
                   <p className="text-gray-500 font-medium">{item.desc}</p>
                 </div>
               </div>
@@ -106,13 +106,13 @@ const Privacy = () => {
           <div className="p-10 bg-gray-950 rounded-[3.5rem] text-white overflow-hidden relative group shadow-2xl">
             <div className="absolute inset-0 bg-gradient-to-br from-orange-600/10 to-transparent"></div>
             <Lock className="w-16 h-16 text-orange-500 mb-8 relative z-10" />
-            <h3 className="text-3xl font-black mb-8 relative z-10 tracking-tighter italic">Internal Access Protocols</h3>
+            <h3 className="text-3xl font-bold mb-8 relative z-10 tracking-tight italic">Internal Access Protocols</h3>
             <p className="text-gray-400 text-2xl font-medium leading-relaxed mb-8 relative z-10 max-w-2xl">
-              Supplier KPIs and dashboards are <span className="text-white font-black underline decoration-orange-600 decoration-4 underline-offset-8">strictly restricted</span> to authorized MyQuoteMate administrators.
+              Supplier KPIs and dashboards are <span className="text-white font-bold underline decoration-orange-600 decoration-4 underline-offset-8">strictly restricted</span> to authorized MyQuoteMate administrators.
             </p>
             <div className="flex items-center gap-4 py-4 px-6 bg-white/5 border border-white/10 rounded-2xl w-fit relative z-10">
               <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-[0_0_12px_rgba(34,197,94,0.6)]" />
-              <span className="text-sm font-black tracking-widest uppercase text-gray-300">Admin-Only Access Secured</span>
+              <span className="text-sm font-bold tracking-widest uppercase text-gray-300">Admin-Only Access Secured</span>
             </div>
           </div>
         </div>
@@ -128,19 +128,19 @@ const Privacy = () => {
           <div className="p-10 bg-red-50 border-2 border-dashed border-red-200 rounded-[3rem] flex items-center gap-8 shadow-inner">
             <AlertTriangle className="w-16 h-16 text-red-600 flex-shrink-0 animate-pulse" />
             <div>
-              <h4 className="text-3xl font-black text-red-950 mb-2 tracking-tighter italic">Zero Selling Policy</h4>
+              <h4 className="text-3xl font-bold text-red-950 mb-2 tracking-tight italic">Zero Selling Policy</h4>
               <p className="text-red-900 font-bold text-xl leading-relaxed opacity-80 mb-0">We do not sell your personal information. Ever.</p>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="p-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-lg">
-              <h4 className="font-black text-gray-900 text-xl mb-4 flex items-center gap-3 italic">
+              <h4 className="font-bold text-gray-900 text-xl mb-4 flex items-center gap-3 italic">
                 <Users className="w-6 h-6 text-orange-600" /> Trusted Providers
               </h4>
               <p className="text-gray-500 font-medium leading-relaxed">Shared strictly for operations (hosting, analytics, payments) or legal requirements.</p>
             </div>
             <div className="p-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-lg">
-              <h4 className="font-black text-gray-900 text-xl mb-4 flex items-center gap-3 italic">
+              <h4 className="font-bold text-gray-900 text-xl mb-4 flex items-center gap-3 italic">
                 <LineChart className="w-6 h-6 text-orange-600" /> Insights & Trends
               </h4>
               <p className="text-gray-500 font-medium leading-relaxed">Aggregated, de-identified industry patterns may be shared with partners for research.</p>
@@ -160,14 +160,14 @@ const Privacy = () => {
             <div className="p-8 bg-orange-50/50 rounded-[2.5rem] border border-orange-100 flex items-start gap-6 transform hover:scale-[1.01] transition-transform shadow-sm">
               <UserCheck className="w-10 h-10 text-orange-600 flex-shrink-0 mt-1" />
               <div>
-                <p className="text-orange-950 font-black text-xl leading-snug mb-2">Verification Authorization</p>
+                <p className="text-orange-950 font-bold text-xl leading-snug mb-2">Verification Authorization</p>
                 <p className="text-orange-900/70 font-bold leading-relaxed italic">You confirm you have the right to share tradie details for analysis purposes.</p>
               </div>
             </div>
             <div className="p-8 bg-white border border-gray-100 rounded-[2.5rem] flex items-start gap-6 shadow-xl shadow-gray-900/5">
               <Activity className="w-10 h-10 text-gray-300 flex-shrink-0 mt-1" />
               <div>
-                <p className="text-gray-900 font-black text-xl mb-2">Benchmarking Data</p>
+                <p className="text-gray-900 font-bold text-xl mb-2">Benchmarking Data</p>
                 <p className="text-gray-500 font-medium leading-relaxed">De-identified quote elements are used to build our internal industry benchmarks.</p>
               </div>
             </div>
@@ -185,13 +185,13 @@ const Privacy = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-6">
               <p className="text-gray-500 font-bold text-xl leading-relaxed italic">Our safeguards are matched to the sensitivity of the data we process.</p>
-              <div className="flex items-center gap-4 py-5 px-8 bg-green-50 rounded-[2rem] text-green-700 font-black shadow-lg shadow-green-900/5 rotate-1">
+              <div className="flex items-center gap-4 py-5 px-8 bg-green-50 rounded-[2rem] text-green-700 font-bold shadow-lg shadow-green-900/5 rotate-1">
                 <Shield className="w-8 h-8" />
-                <span className="text-xl uppercase tracking-tighter">Encrypted Protocol</span>
+                <span className="text-xl uppercase tracking-tight">Encrypted Protocol</span>
               </div>
             </div>
             <div className="p-10 bg-amber-50 rounded-[3rem] border border-amber-200 shadow-inner">
-              <div className="flex items-center gap-4 mb-6 text-amber-950 font-black text-2xl tracking-tighter">
+              <div className="flex items-center gap-4 mb-6 text-amber-950 font-bold text-2xl tracking-tight">
                 <AlertTriangle className="w-8 h-8" /> Risk Note
               </div>
               <p className="text-amber-900/70 font-bold leading-relaxed mb-0">No system is absolute. You use MyQuoteMate acknowledging inherent digital risks.</p>
@@ -210,10 +210,10 @@ const Privacy = () => {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {['Delivery', 'Legal', 'Disputes', 'Security'].map((item, i) => (
               <div key={i} className="p-6 bg-white border border-gray-100 rounded-[2.5rem] text-center shadow-lg hover:border-orange-200 transition-all group">
-                <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-600 mx-auto mb-4 font-black group-hover:scale-110 transition-transform">
+                <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-600 mx-auto mb-4 font-bold group-hover:scale-110 transition-transform">
                   0{i + 1}
                 </div>
-                <span className="text-sm font-black text-gray-900 uppercase tracking-widest">{item}</span>
+                <span className="text-sm font-bold text-gray-900 uppercase tracking-widest">{item}</span>
               </div>
             ))}
           </div>
@@ -230,9 +230,9 @@ const Privacy = () => {
           <div className="p-12 bg-gradient-to-br from-gray-900 to-black rounded-[4rem] text-white shadow-2xl relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-80 h-80 bg-orange-600/10 rounded-full blur-3xl -mr-40 -mt-40"></div>
             <Activity className="w-16 h-16 mb-8 text-orange-500" />
-            <h3 className="text-4xl font-black mb-6 tracking-tighter italic">Dynamic Updates</h3>
+            <h3 className="text-4xl font-bold mb-6 tracking-tight italic">Dynamic Updates</h3>
             <p className="text-gray-400 text-2xl font-medium leading-tight mb-0">
-              The version in effect <span className="text-white font-black underline decoration-orange-600 decoration-4">at the time of purchase</span> applies to that specific transaction.
+              The version in effect <span className="text-white font-bold underline decoration-orange-600 decoration-4">at the time of purchase</span> applies to that specific transaction.
             </p>
           </div>
         </div>
@@ -252,9 +252,9 @@ const Privacy = () => {
             <div className="w-28 h-28 bg-orange-600 rounded-[3rem] flex items-center justify-center text-white shadow-2xl shadow-orange-600/40 mb-10 rotate-6 hover:rotate-0 transition-transform cursor-pointer">
               <Mail className="w-12 h-12" />
             </div>
-            <h3 className="text-4xl font-black text-gray-950 mb-6 tracking-tighter italic">Privacy Support</h3>
+            <h3 className="text-4xl font-bold text-gray-950 mb-6 tracking-tight italic">Privacy Support</h3>
             <p className="text-gray-400 font-bold text-xl leading-relaxed mb-10 max-w-lg">Address any clarifications to our team regarding data processing.</p>
-            <a href="mailto:aus.myquotemate@gmail.com" className="text-gray-950 font-black text-3xl sm:text-5xl hover:text-orange-600 transition-colors tracking-tighter underline decoration-orange-200 underline-offset-8 decoration-8">
+            <a href="mailto:aus.myquotemate@gmail.com" className="text-gray-950 font-bold text-3xl sm:text-5xl hover:text-orange-600 transition-colors tracking-tight underline decoration-orange-200 underline-offset-8 decoration-8">
               aus.myquotemate@gmail.com
             </a>
           </div>
@@ -304,18 +304,20 @@ const Privacy = () => {
                   <Shield className="w-8 h-8" />
                 </div>
                 <div>
-                  <span className="text-gray-400 font-black tracking-widest uppercase text-xs block mb-1">Protective Framework</span>
+                  <span className="text-gray-400 font-bold tracking-widest uppercase text-xs block mb-1">Protective Framework</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-gray-950 font-black text-sm uppercase">Privacy Notice</span>
+                    <span className="text-gray-950 font-bold text-sm uppercase">Privacy Notice</span>
                     <Sparkles className="w-4 h-4 text-orange-500 animate-pulse" />
                   </div>
                 </div>
               </div>
             </div>
 
-            <h1 className="text-5xl sm:text-7xl lg:text-8xl font-black text-gray-900 mb-6 tracking-tighter leading-[0.85]">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-gray-900 mb-4 sm:mb-6 leading-tight tracking-tight px-2">
               Data <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-amber-600 italic">Security</span>
+              <span className="bg-gradient-to-r from-orange-500 to-amber-600 bg-clip-text text-transparent mt-1 sm:mt-2">
+                Security
+              </span>
             </h1>
           </div>
         </div>
@@ -335,7 +337,7 @@ const Privacy = () => {
                   {currentSection.icon}
                 </div>
                 <div>
-                  <h2 className="text-3xl sm:text-5xl font-black text-gray-950 tracking-tighter italic mb-2">
+                  <h2 className="text-3xl sm:text-5xl font-bold text-gray-950 tracking-tight italic mb-2">
                     {currentSection.title}
                   </h2>
                   <p className="text-gray-400 font-bold text-lg max-w-xl leading-snug">
@@ -376,9 +378,9 @@ const Privacy = () => {
 
                 <button
                   onClick={handleNext}
-                  className="flex-grow sm:flex-initial flex items-center justify-center gap-6 px-12 py-6 bg-gray-950 text-white rounded-[2.5rem] font-black group hover:bg-orange-600 transition-all shadow-2xl shadow-gray-950/20 active:scale-95"
+                  className="flex-grow sm:flex-initial flex items-center justify-center gap-6 px-12 py-6 bg-gray-950 text-white rounded-[2.5rem] font-bold group hover:bg-orange-600 transition-all shadow-2xl shadow-gray-950/20 active:scale-95"
                 >
-                  <span className="text-xl uppercase tracking-tighter">
+                  <span className="text-xl uppercase tracking-tight">
                     {currentStep === privacySections.length - 1 ? 'Get Support' : 'Next Step'}
                   </span>
                   <div className="p-2 bg-white/10 rounded-full group-hover:bg-white/20 transition-colors">
@@ -395,7 +397,7 @@ const Privacy = () => {
               <Lock className="w-24 h-24 text-gray-50 opacity-10 group-hover:text-orange-500 group-hover:scale-125 transition-all duration-1000" />
             </div>
             <div className="relative z-10">
-              <h4 className="text-2xl font-black text-gray-900 mb-4 tracking-tighter italic">Australian Compliance</h4>
+              <h4 className="text-2xl font-bold text-gray-900 mb-4 tracking-tight italic">Australian Compliance</h4>
               <p className="text-gray-400 font-bold text-lg leading-relaxed mb-0 max-w-xl">
                 We are strictly bound by the Australian Privacy Principles (APPs). We handle all data in accordance with these principles to ensure absolute transparency.
               </p>
@@ -404,7 +406,7 @@ const Privacy = () => {
 
           {/* Nav CTA */}
           <div className="mt-12 flex items-center justify-center gap-6">
-            <Link to="/terms" className="text-gray-400 font-black uppercase tracking-widest text-xs hover:text-orange-600 transition-colors flex items-center gap-2">
+            <Link to="/terms" className="text-gray-400 font-bold uppercase tracking-widest text-xs hover:text-orange-600 transition-colors flex items-center gap-2">
               <ArrowRight className="w-4 h-4 rotate-180" />
               View Terms of Service
             </Link>

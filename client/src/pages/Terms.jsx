@@ -67,14 +67,14 @@ const Terms = () => {
               <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mb-6 text-orange-600 group-hover:rotate-6 transition-transform">
                 <Search className="w-8 h-8" />
               </div>
-              <h3 className="font-black text-gray-900 text-2xl mb-4 tracking-tight">Automated Summary</h3>
+              <h3 className="font-bold text-gray-900 text-2xl mb-4 tracking-tight">Automated Summary</h3>
               <p className="text-gray-500 font-medium leading-relaxed">Quickly digest complex quotes with structured, AI-driven summaries that highlight what matters most.</p>
             </div>
             <div className="p-8 bg-white border border-amber-100 rounded-[2.5rem] shadow-xl shadow-amber-900/5 hover:-translate-y-2 transition-all duration-500 border-b-8 border-b-amber-500 group">
               <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mb-6 text-amber-600 group-hover:-rotate-6 transition-transform">
                 <Target className="w-8 h-8" />
               </div>
-              <h3 className="font-black text-gray-900 text-2xl mb-4 tracking-tight">Comparison Matrix</h3>
+              <h3 className="font-bold text-gray-900 text-2xl mb-4 tracking-tight">Comparison Matrix</h3>
               <p className="text-gray-500 font-medium leading-relaxed">Professional side-by-side analysis of inclusions, exclusions, and pricing tiers across different providers.</p>
             </div>
           </div>
@@ -93,7 +93,7 @@ const Terms = () => {
             <div className="absolute top-0 right-0 p-8 opacity-10">
               <AlertTriangle className="w-32 h-32 text-red-600" />
             </div>
-            <h4 className="font-black text-red-900 text-2xl mb-8 flex items-center gap-4 relative z-10">
+            <h4 className="font-bold text-red-900 text-2xl mb-8 flex items-center gap-4 relative z-10">
               <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse" /> Explicit Disclaimers
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
@@ -130,7 +130,7 @@ const Terms = () => {
               'Conducting due diligence before accepting any quote'
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-6 p-6 bg-white border border-gray-100 rounded-[2rem] hover:border-orange-200 transition-all group shadow-sm hover:shadow-xl hover:shadow-orange-900/5">
-                <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:bg-orange-600 group-hover:text-white transition-all font-black text-orange-600 text-xl">
+                <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:bg-orange-600 group-hover:text-white transition-all font-bold text-orange-600 text-xl">
                   {i + 1}
                 </div>
                 <p className="text-gray-800 font-bold text-lg">{item}</p>
@@ -150,15 +150,15 @@ const Terms = () => {
         <div className="space-y-6">
           <div className="bg-gray-950 rounded-[3.5rem] p-12 text-white relative overflow-hidden group shadow-2xl">
             <div className="absolute top-0 right-0 w-80 h-80 bg-orange-600/10 rounded-full -mr-40 -mt-40 blur-3xl group-hover:bg-orange-600/20 transition-all duration-1000"></div>
-            <h3 className="text-3xl font-black mb-8 flex items-center gap-4 tracking-tighter italic">
+            <h3 className="text-3xl font-bold mb-8 flex items-center gap-4 tracking-tight italic">
               <Users className="w-10 h-10 text-orange-500" /> Professional Independence
             </h3>
             <p className="text-gray-400 text-xl font-medium leading-relaxed mb-8 max-w-2xl">
-              You agree MyQuoteMate is not responsible for tradie conduct or outcomes, including <span className="text-white font-black underline decoration-orange-500/50 decoration-4 underline-offset-8">defects, delays, cancellations, cost overruns, or variations.</span>
+              You agree MyQuoteMate is not responsible for tradie conduct or outcomes, including <span className="text-white font-bold underline decoration-orange-500/50 decoration-4 underline-offset-8">defects, delays, cancellations, cost overruns, or variations.</span>
             </p>
             <div className="flex items-center gap-3 py-4 px-6 bg-white/5 border border-white/10 rounded-2xl w-fit">
               <Shield className="w-5 h-5 text-orange-500" />
-              <span className="text-sm font-black tracking-widest uppercase text-gray-300">Liability Shield Active</span>
+              <span className="text-sm font-bold tracking-widest uppercase text-gray-300">Liability Shield Active</span>
             </div>
           </div>
         </div>
@@ -178,7 +178,7 @@ const Terms = () => {
                 <Zap className="w-12 h-12" />
               </div>
               <div className="text-center md:text-left">
-                <h3 className="text-2xl font-black text-amber-950 mb-4 tracking-tighter italic">Independent Verification</h3>
+                <h3 className="text-2xl font-bold text-amber-950 mb-4 tracking-tight italic">Independent Verification</h3>
                 <p className="text-amber-900 font-bold text-xl leading-relaxed opacity-80">You agree to independently verify critical details and not rely solely on the automated report for major decisions.</p>
               </div>
             </div>
@@ -205,11 +205,11 @@ const Terms = () => {
                 <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-500 group-hover:bg-orange-500 group-hover:text-white transition-all">
                   <Shield className="w-5 h-5" />
                 </div>
-                <span className="text-gray-800 font-black text-sm tracking-tight">{item}</span>
+                <span className="text-gray-800 font-bold text-sm tracking-tight">{item}</span>
               </div>
             ))}
           </div>
-          <div className="p-8 bg-orange-500 rounded-[2.5rem] text-white font-black text-center shadow-2xl italic tracking-tighter text-xl">
+          <div className="p-8 bg-orange-500 rounded-[2.5rem] text-white font-bold text-center shadow-2xl italic tracking-tight text-xl">
             "Liability is limited to resupplying the service or refunding the specific amount paid."
           </div>
         </div>
@@ -229,8 +229,8 @@ const Terms = () => {
               <DollarSign className="w-12 h-12" />
             </div>
             <div className="text-center md:text-left">
-              <h3 className="text-3xl font-black text-gray-950 mb-4 tracking-tighter">Australian Consumer Law</h3>
-              <p className="text-gray-500 text-2xl font-medium leading-tight">Refunds are issued where required by <span className="text-green-600 font-black">ACL</span> (e.g., major failures or non-supply).</p>
+              <h3 className="text-3xl font-bold text-gray-950 mb-4 tracking-tight">Australian Consumer Law</h3>
+              <p className="text-gray-500 text-2xl font-medium leading-tight">Refunds are issued where required by <span className="text-green-600 font-bold">ACL</span> (e.g., major failures or non-supply).</p>
             </div>
           </div>
         </div>
@@ -255,7 +255,7 @@ const Terms = () => {
                 <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center text-red-500 shadow-lg group-hover:scale-110 transition-transform">
                   <X className="w-6 h-6" strokeWidth={3} />
                 </div>
-                <span className="text-red-950 font-black text-sm tracking-tight uppercase">{item}</span>
+                <span className="text-red-950 font-bold text-sm tracking-tight uppercase">{item}</span>
               </div>
             ))}
           </div>
@@ -273,7 +273,7 @@ const Terms = () => {
           <div className="relative p-12 bg-gradient-to-br from-orange-600 to-amber-700 rounded-[4rem] text-white shadow-2xl overflow-hidden group">
             <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-1000"></div>
             <BookOpen className="w-16 h-16 mb-8 text-orange-200" />
-            <h3 className="text-4xl font-black mb-6 tracking-tighter italic">Personal Usage Only</h3>
+            <h3 className="text-4xl font-bold mb-6 tracking-tight italic">Personal Usage Only</h3>
             <p className="text-orange-100 text-2xl font-bold leading-relaxed mb-0">
               Reselling or large-scale commercial exploitation is strictly prohibited without explicit written permission.
             </p>
@@ -324,24 +324,26 @@ const Terms = () => {
                   <Scale className="w-8 h-8" />
                 </div>
                 <div>
-                  <span className="text-gray-400 font-black tracking-widest uppercase text-xs block mb-1">Compliance & Ethics</span>
+                  <span className="text-gray-400 font-bold tracking-widest uppercase text-xs block mb-1">Compliance & Ethics</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-orange-600 font-black text-sm uppercase">Terms of Service</span>
+                    <span className="text-orange-600 font-bold text-sm uppercase">Terms of Service</span>
                     <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
                   </div>
                 </div>
               </div>
               <div className="hidden sm:flex items-center gap-6">
                 <div className="text-right">
-                  <div className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Last Updated</div>
-                  <div className="text-gray-900 font-black text-sm">October 2023</div>
+                  <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Last Updated</div>
+                  <div className="text-gray-900 font-bold text-sm">October 2023</div>
                 </div>
               </div>
             </div>
 
-            <h1 className="text-5xl sm:text-7xl lg:text-8xl font-black text-gray-900 mb-6 tracking-tighter leading-[0.85]">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-gray-900 mb-4 sm:mb-6 leading-tight tracking-tight px-2">
               Legal <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-amber-600 italic">Agreement</span>
+              <span className="bg-gradient-to-r from-orange-500 to-amber-600 bg-clip-text text-transparent mt-1 sm:mt-2">
+                Agreement
+              </span>
             </h1>
           </div>
         </div>
@@ -361,7 +363,7 @@ const Terms = () => {
                   {currentSection.icon}
                 </div>
                 <div>
-                  <h2 className="text-3xl sm:text-5xl font-black text-gray-950 tracking-tighter italic mb-2">
+                  <h2 className="text-3xl sm:text-5xl font-bold text-gray-950 tracking-tight italic mb-2">
                     {currentSection.title}
                   </h2>
                   <p className="text-gray-400 font-bold text-lg max-w-xl leading-snug">
@@ -402,9 +404,9 @@ const Terms = () => {
 
                 <button
                   onClick={handleNext}
-                  className="flex-grow sm:flex-initial flex items-center justify-center gap-6 px-12 py-6 bg-gray-950 text-white rounded-[2.5rem] font-black group hover:bg-orange-600 transition-all shadow-2xl shadow-gray-950/20 active:scale-95"
+                  className="flex-grow sm:flex-initial flex items-center justify-center gap-6 px-12 py-6 bg-gray-950 text-white rounded-[2.5rem] font-bold group hover:bg-orange-600 transition-all shadow-2xl shadow-gray-950/20 active:scale-95"
                 >
-                  <span className="text-xl uppercase tracking-tighter">
+                  <span className="text-xl uppercase tracking-tight">
                     {currentStep === termsSections.length - 1 ? 'Read Privacy' : 'Next Step'}
                   </span>
                   <div className="p-2 bg-white/10 rounded-full group-hover:bg-white/20 transition-colors">
@@ -417,8 +419,8 @@ const Terms = () => {
 
           {/* Contact Help CTA */}
           <div className="mt-16 group p-12 bg-gray-50/50 border-2 border-dashed border-gray-100 rounded-[4rem] transition-all hover:bg-orange-50/30 hover:border-orange-200/50 text-center">
-            <p className="text-gray-400 font-black uppercase tracking-widest text-xs mb-4">Questions about these terms?</p>
-            <a href="mailto:aus.myquotemate@gmail.com" className="text-gray-950 font-black text-3xl sm:text-4xl hover:text-orange-600 transition-colors tracking-tighter italic">
+            <p className="text-gray-400 font-bold uppercase tracking-widest text-xs mb-4">Questions about these terms?</p>
+            <a href="mailto:aus.myquotemate@gmail.com" className="text-gray-950 font-bold text-3xl sm:text-4xl hover:text-orange-600 transition-colors tracking-tight italic">
               aus.myquotemate@gmail.com
             </a>
           </div>
