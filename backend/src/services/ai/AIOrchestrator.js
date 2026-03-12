@@ -13,16 +13,16 @@ const logger = require('../../utils/logger');
  */
 const TIER_LIMITS = {
   free: {
-    maxInputChars: 7000,
-    maxOutputTokens: 7000
+    maxInputChars: 10000,
+    maxOutputTokens: 10000
   },
   standard: {
     maxInputChars: 250000, // Significantly increased for large PDFs
-    maxOutputTokens: 16000
+    maxOutputTokens: 20000
   },
   premium: {
-    maxInputChars: 500000, // Significantly increased for large PDFs
-    maxOutputTokens: 16384 // Maximum for long analysis
+    maxInputChars: 800000, // Significantly increased for large PDFs
+    maxOutputTokens: 36384 // Maximum for long analysis
   }
 };
 
@@ -200,6 +200,39 @@ class AIOrchestrator {
     );
   }
 
+  normalizeDetailedReview(value) {
+    if (Array.isArray(value)) {
+      return value
+        .map(item => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean);
+    }
+
+    if (typeof value !== 'string') {
+      return [];
+    }
+
+    const normalized = value
+      .replace(/\r/g, '\n')
+      .replace(/[•●▪◦]/g, '\n- ')
+      .replace(/[✓✔]/g, '\n- ')
+      .replace(/[⚠]/g, '\n- ')
+      .trim();
+
+    let points = normalized
+      .split(/\n+/)
+      .map(part => part.replace(/^[-*]\s*/, '').trim())
+      .filter(Boolean);
+
+    if (points.length <= 1) {
+      points = normalized
+        .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
+        .map(part => part.replace(/^[-*]\s*/, '').trim())
+        .filter(Boolean);
+    }
+
+    return points.filter(point => point.length > 8);
+  }
+
   /**
    * Parse single-quote response
    */
@@ -253,6 +286,10 @@ class AIOrchestrator {
       if (tier !== 'free' && !parsed.analysis) {
         throw new Error(`Invalid ${tier}-tier response: missing analysis`);
       }
+    }
+
+    if (parsed.analysis) {
+      parsed.analysis.detailedReview = this.normalizeDetailedReview(parsed.analysis.detailedReview);
     }
 
     return {

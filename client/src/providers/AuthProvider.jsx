@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }) => {
   // ----------------------------------
   const refreshUser = async () => {
     const token = localStorage.getItem("auth_token");
-    if (!token) return;
+    if (!token) return null;
 
     try {
       const response = await fetch(`${API_URL}/users/me`, {
@@ -86,10 +86,13 @@ export const AuthProvider = ({ children }) => {
         const data = await response.json();
         setUser(data.data);
         localStorage.setItem("auth_user", JSON.stringify(data.data));
+        return data.data;
       }
     } catch (error) {
       console.error('Failed to refresh user:', error);
     }
+
+    return null;
   };
 
   // ----------------------------------
@@ -139,6 +142,7 @@ export const AuthProvider = ({ children }) => {
   // LOGIN - Production Ready
   // ----------------------------------
   const login = async ({ email, password }) => {
+    const loginErrorMessage = "wrong credentials";
     setLoading(true);
     setError(null);
 
@@ -156,22 +160,19 @@ export const AuthProvider = ({ children }) => {
         })
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        if (res.status === 401) {
-          throw new Error("Invalid email or password");
-        } else if (res.status === 423) {
-          const err = new Error("Account is locked. Please try again later.");
-          err.lockUntil = data.lockUntil;
-          throw err;
-        } else {
-          throw new Error(data.error || data.message || "Login failed");
-        }
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        data = null;
       }
 
-      if (!data.success || !data.data?.user) {
-        throw new Error("Invalid response from server");
+      if (!res.ok) {
+        throw new Error(loginErrorMessage);
+      }
+
+      if (!data?.success || !data?.data?.user) {
+        throw new Error(loginErrorMessage);
       }
 
       const { user: userDataResponse, tokens } = data.data;
@@ -185,15 +186,16 @@ export const AuthProvider = ({ children }) => {
       if (accessToken) localStorage.setItem("auth_token", accessToken);
       if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
 
+      const hydratedUser = accessToken ? await refreshUser() : null;
+
       setShowAuthModal(false);
-      return { success: true, user: userDataResponse };
+      return { success: true, user: hydratedUser || userDataResponse };
     } catch (err) {
       console.error('Login error:', err);
-      const errorMessage = err.message || "Login failed. Please try again.";
-      setError(errorMessage);
+      setError(loginErrorMessage);
       return {
         success: false,
-        error: errorMessage
+        error: loginErrorMessage
       };
     } finally {
       setLoading(false);
@@ -236,6 +238,8 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("auth_token", tokens.accessToken);
       localStorage.setItem("refresh_token", tokens.refreshToken);
 
+      const hydratedUser = await refreshUser();
+
       // Close modal and handle redirect
       setShowAuthModal(false);
       if (redirectPath) {
@@ -243,7 +247,7 @@ export const AuthProvider = ({ children }) => {
         setRedirectPath(null);
       }
 
-      return { success: true, user: userData };
+      return { success: true, user: hydratedUser || userData };
     } catch (error) {
       console.error('OTP verification failed:', error);
       setError(error.message);
@@ -266,7 +270,8 @@ export const AuthProvider = ({ children }) => {
         password: userData.password,
         firstName: userData.firstName,
         lastName: userData.lastName,
-        phone: userData.phone || undefined
+        phone: userData.phone || undefined,
+        isPhoneVerified: Boolean(userData.isPhoneVerified)
       };
 
       const res = await fetch(`${API_URL}/auth/register`, {
@@ -310,8 +315,10 @@ export const AuthProvider = ({ children }) => {
       if (accessToken) localStorage.setItem("auth_token", accessToken);
       if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
 
+      const hydratedUser = accessToken ? await refreshUser() : null;
+
       setShowAuthModal(false);
-      return { success: true, user: userDataResponse };
+      return { success: true, user: hydratedUser || userDataResponse };
     } catch (err) {
       console.error('Signup error:', err);
       setError(err.message || "Registration failed. Please try again.");
@@ -372,7 +379,20 @@ export const AuthProvider = ({ children }) => {
         throw new Error(data.error || "Verification failed");
       }
 
-      return { success: true };
+      const verifiedUser = data?.data?.user || null;
+      const tokens = data?.data?.tokens || null;
+
+      if (verifiedUser && tokens?.accessToken && tokens?.refreshToken) {
+        setUser(verifiedUser);
+        localStorage.setItem("auth_user", JSON.stringify(verifiedUser));
+        localStorage.setItem("auth_token", tokens.accessToken);
+        localStorage.setItem("refresh_token", tokens.refreshToken);
+
+        const hydratedUser = await refreshUser();
+        return { success: true, user: hydratedUser || verifiedUser, existingUser: true };
+      }
+
+      return { success: true, user: null, existingUser: false };
     } catch (err) {
       console.error('Verify OTP error:', err);
       return { success: false, error: err.message };
@@ -385,11 +405,31 @@ export const AuthProvider = ({ children }) => {
   // LOGOUT - Production Ready
   // ----------------------------------
   const logout = () => {
+    const token = localStorage.getItem("auth_token");
     setUser(null);
     localStorage.removeItem("auth_user");
     localStorage.removeItem("auth_token");
+    localStorage.removeItem("refresh_token");
     // Optional: Call backend logout endpoint
-    fetch(`${API_URL}/auth/logout`, { method: 'POST' }).catch(console.error);
+    if (!token) {
+      return;
+    }
+
+    fetch(`${API_URL}/auth/logout`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      }
+    })
+      .then((response) => {
+        if (!response.ok && response.status !== 401) {
+          console.error(`Logout request failed with status ${response.status}`);
+        }
+      })
+      .catch((error) => {
+        console.error('Logout request failed:', error);
+      });
   };
 
   // ----------------------------------

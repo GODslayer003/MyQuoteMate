@@ -8,11 +8,9 @@ import {
   EyeOff,
   LogIn,
   AlertCircle,
-  Loader2,
-  Shield
+  Loader2
 } from 'lucide-react';
 import { useAuth } from "../hooks/useAuth";
-import Swal from 'sweetalert2';
 
 const LoginModal = ({ isOpen, onClose, onSwitchToSignUp }) => {
   const { login, loading, error, clearError } = useAuth();
@@ -24,9 +22,6 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignUp }) => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
-  const [loginAttempts, setLoginAttempts] = useState(0);
-  const [isLocked, setIsLocked] = useState(false);
-  const [lockUntil, setLockUntil] = useState(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -36,21 +31,6 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignUp }) => {
       setShowPassword(false);
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    // Check if account is locked
-    if (lockUntil && lockUntil > Date.now()) {
-      setIsLocked(true);
-      const timer = setTimeout(() => {
-        setIsLocked(false);
-        setLockUntil(null);
-        setLoginAttempts(0);
-      }, lockUntil - Date.now());
-      return () => clearTimeout(timer);
-    } else {
-      setIsLocked(false);
-    }
-  }, [lockUntil]);
 
   if (!isOpen) return null;
 
@@ -83,47 +63,13 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignUp }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (isLocked) {
-      const remainingTime = Math.ceil((lockUntil - Date.now()) / 60000); // in minutes
-      Swal.fire({
-        title: 'Account Locked',
-        text: `Account is locked. Please try again in ${remainingTime} minute(s).`,
-        icon: 'warning',
-        confirmButtonColor: '#f97316'
-      });
-      return;
-    }
-
     const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) {
       setFieldErrors(validationErrors);
       return;
     }
 
-    const success = await login(formData);
-
-    if (!success) {
-      const newAttempts = loginAttempts + 1;
-      setLoginAttempts(newAttempts);
-
-      if (newAttempts >= 5) {
-        // Lock account for 2 hours (matching backend)
-        const lockTime = Date.now() + (2 * 60 * 60 * 1000);
-        setLockUntil(lockTime);
-        setIsLocked(true);
-      }
-    } else {
-      // Reset attempts on successful login
-      setLoginAttempts(0);
-      setLockUntil(null);
-      setIsLocked(false);
-    }
-  };
-
-  const getRemainingLockTime = () => {
-    if (!lockUntil || !isLocked) return 0;
-    const remaining = lockUntil - Date.now();
-    return Math.ceil(remaining / 60000); // Convert to minutes
+    await login(formData);
   };
 
   return (
@@ -161,40 +107,12 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignUp }) => {
 
         {/* Content */}
         <div className="p-6">
-          {/* Account locked warning */}
-          {isLocked && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <div className="flex items-start gap-3">
-                <Shield className="w-5 h-5 text-red-600 mt-0.5" />
-                <div className="flex-1">
-                  <h3 className="font-medium text-red-800">Account Locked</h3>
-                  <p className="text-sm text-red-700 mt-1">
-                    Too many failed login attempts. Please try again in{' '}
-                    {getRemainingLockTime()} minute(s).
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Global error */}
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span className="text-sm">{error}</span>
-              </div>
-            </div>
-          )}
-
-          {/* Login attempts warning */}
-          {loginAttempts > 0 && !isLocked && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span className="text-sm">
-                  {loginAttempts} failed attempt(s). Account will be locked after 5 attempts.
-                </span>
               </div>
             </div>
           )}
@@ -213,7 +131,7 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignUp }) => {
                   type="email"
                   value={formData.email}
                   onChange={handleChange}
-                  disabled={isLocked || loading}
+                  disabled={loading}
                   className={`w-full pl-10 pr-3 py-2.5 rounded-lg border ${fieldErrors.email
                     ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
                     : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500'
@@ -248,7 +166,7 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignUp }) => {
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={handleChange}
-                  disabled={isLocked || loading}
+                  disabled={loading}
                   className={`w-full pl-10 pr-10 py-2.5 rounded-lg border ${fieldErrors.password
                     ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
                     : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500'
@@ -259,7 +177,7 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignUp }) => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(p => !p)}
-                  disabled={isLocked || loading}
+                  disabled={loading}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
@@ -278,7 +196,7 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignUp }) => {
             {/* Submit button */}
             <button
               type="submit"
-              disabled={loading || isLocked}
+              disabled={loading}
               className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-medium rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
             >
               {loading ? (
@@ -305,7 +223,7 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignUp }) => {
             <button
               type="button"
               onClick={() => window.location.href = `${import.meta.env.VITE_API_BASE}/api/${import.meta.env.VITE_API_VERSION}/auth/google`}
-              disabled={loading || isLocked}
+              disabled={loading}
               className="w-full py-3 bg-white border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-700 font-medium rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 flex items-center justify-center gap-3"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">

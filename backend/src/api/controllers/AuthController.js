@@ -8,6 +8,25 @@ const Lead = require('../../models/Lead');
 const Job = require('../../models/Job');
 const logger = require('../../utils/logger');
 
+const normalizePhone = (value = '') => {
+  const trimmed = String(value).trim();
+  if (!trimmed) return '';
+
+  let normalized = trimmed.replace(/[^\d+]/g, '');
+
+  if (normalized.startsWith('00')) {
+    normalized = `+${normalized.slice(2)}`;
+  }
+
+  if (normalized.startsWith('+')) {
+    normalized = `+${normalized.slice(1).replace(/\D/g, '')}`;
+    normalized = normalized.replace(/^(\+\d{1,3})0+/, '$1');
+    return normalized;
+  }
+
+  return normalized.replace(/\D/g, '');
+};
+
 class AuthController {
   /**
    * Register new user
@@ -15,7 +34,8 @@ class AuthController {
    */
   async register(req, res, next) {
     try {
-      const { email, password, firstName, lastName, phone, isPhoneVerified } = req.body;
+      const { email, password, firstName, lastName, isPhoneVerified } = req.body;
+      const phone = normalizePhone(req.body.phone);
       const BannedUser = require('../../models/BannedUser');
 
       // Check if user is banned
@@ -30,10 +50,58 @@ class AuthController {
       // Check if user exists
       const existingUser = await User.findByEmail(email);
       if (existingUser) {
+        if (
+          isPhoneVerified &&
+          phone &&
+          existingUser.phone === phone &&
+          existingUser.phoneVerified
+        ) {
+          existingUser.security.lastLoginAt = new Date();
+          await existingUser.save();
+
+          const accessToken = TokenService.generateAccessToken(existingUser._id);
+          const refreshToken = TokenService.generateRefreshToken(existingUser._id);
+
+          return res.status(200).json({
+            success: true,
+            data: {
+              user: {
+                id: existingUser._id,
+                email: existingUser.email,
+                firstName: existingUser.firstName,
+                lastName: existingUser.lastName,
+                avatarUrl: existingUser.avatarUrl,
+                phone: existingUser.phone,
+                phoneVerified: existingUser.phoneVerified,
+                subscription: existingUser.subscription
+              },
+              tokens: {
+                accessToken,
+                refreshToken,
+                expiresIn: process.env.JWT_EXPIRES_IN
+              }
+            }
+          });
+        }
+
         return res.status(409).json({
           success: false,
           error: 'Email already registered'
         });
+      }
+
+      if (phone) {
+        const existingPhoneUser = await User.findOne({
+          phone,
+          accountStatus: { $ne: 'deleted' }
+        });
+
+        if (existingPhoneUser) {
+          return res.status(409).json({
+            success: false,
+            error: 'Phone number already registered'
+          });
+        }
       }
 
       // Create user
@@ -96,8 +164,8 @@ class AuthController {
       const EmailService = require('../../services/email/EmailService');
       EmailService.sendWelcomeEmail(user).catch(err => logger.error('Failed to send welcome email:', err));
 
-      // If phone is provided, trigger OTP verification
-      if (phone) {
+      // If phone is provided but was not verified upstream, trigger OTP verification
+      if (phone && !isPhoneVerified) {
         // Generate 6-digit code
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -142,7 +210,9 @@ class AuthController {
             firstName: user.firstName,
             lastName: user.lastName,
             avatarUrl: user.avatarUrl,
-            phoneVerified: user.phoneVerified
+            phone: user.phone,
+            phoneVerified: user.phoneVerified,
+            subscription: user.subscription
           },
           tokens: {
             accessToken,
@@ -169,9 +239,9 @@ class AuthController {
       // Check if user is banned
       const isBanned = await BannedUser.findOne({ email: email.toLowerCase() });
       if (isBanned) {
-        return res.status(403).json({
+        return res.status(401).json({
           success: false,
-          error: 'Your account has been suspended permanently due to a violation of our terms.'
+          error: 'wrong credentials'
         });
       }
 
@@ -181,7 +251,7 @@ class AuthController {
       if (!user) {
         return res.status(401).json({
           success: false,
-          error: 'Invalid email or password'
+          error: 'wrong credentials'
         });
       }
 
@@ -199,7 +269,7 @@ class AuthController {
       if (!isPasswordValid) {
         return res.status(401).json({
           success: false,
-          error: 'Invalid email or password'
+          error: 'wrong credentials'
         });
       }
 
@@ -235,7 +305,9 @@ class AuthController {
             lastName: user.lastName,
             avatarUrl: user.avatarUrl,
             emailVerified: user.emailVerified,
-            phoneVerified: user.phoneVerified
+            phone: user.phone,
+            phoneVerified: user.phoneVerified,
+            subscription: user.subscription
           },
           tokens: {
             accessToken,
@@ -448,7 +520,7 @@ class AuthController {
    */
   async sendOtp(req, res, next) {
     try {
-      const { phone } = req.body;
+      const phone = normalizePhone(req.body.phone);
 
       if (!phone) {
         return res.status(400).json({
@@ -497,7 +569,8 @@ class AuthController {
    */
   async verifyOtp(req, res, next) {
     try {
-      const { phone, code } = req.body;
+      const phone = normalizePhone(req.body.phone);
+      const code = String(req.body.code || '').trim();
 
       if (!phone || !code) {
         return res.status(400).json({
@@ -506,7 +579,7 @@ class AuthController {
         });
       }
 
-      const otpRecord = await OTP.findOne({ phone });
+      const otpRecord = await OTP.findOne({ phone }).sort({ createdAt: -1 });
 
       if (!otpRecord) {
         return res.status(400).json({
@@ -515,12 +588,20 @@ class AuthController {
         });
       }
 
+      if (otpRecord.expiresAt <= new Date()) {
+        await OTP.deleteMany({ phone });
+        return res.status(400).json({
+          success: false,
+          error: 'Verification code has expired. Please request a new code.'
+        });
+      }
+
       if (otpRecord.code !== code) {
         otpRecord.attempts += 1;
         await otpRecord.save();
 
         if (otpRecord.attempts >= 5) {
-          await OTP.deleteOne({ phone });
+          await OTP.deleteMany({ phone });
           return res.status(400).json({
             success: false,
             error: 'Too many failed attempts. Please request a new code.'
@@ -534,7 +615,7 @@ class AuthController {
       }
 
       // Success - Delete OTP record
-      await OTP.deleteOne({ phone });
+      await OTP.deleteMany({ phone });
 
       // Check if user exists with this phone
       const user = await User.findOne({ phone });
@@ -576,7 +657,9 @@ class AuthController {
             firstName: user.firstName,
             lastName: user.lastName,
             avatarUrl: user.avatarUrl,
-            phoneVerified: user.phoneVerified
+            phone: user.phone,
+            phoneVerified: user.phoneVerified,
+            subscription: user.subscription
           },
           tokens
         } : null

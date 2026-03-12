@@ -17,8 +17,9 @@ import {
   ArrowLeft,
   Key
 } from 'lucide-react';
-
-import Swal from 'sweetalert2';
+import LegalModal from '../components/LegalModal';
+import Terms from './Terms';
+import Privacy from './Privacy';
 
 const AuthModal = ({
   isOpen,
@@ -31,13 +32,17 @@ const AuthModal = ({
   loading,
   error,
   clearError = () => { },
-  verifyOtpDuringLogin
+  verifyOtpDuringLogin,
+  allowOtpStep = true
 }) => {
 
 
 
   // Mode: 'login', 'signup', or 'forgot-password'
   const [mode, setMode] = useState(initialMode);
+
+  // Legal modal state
+  const [legalModalType, setLegalModalType] = useState(null);
 
   // Login form state
   const [loginData, setLoginData] = useState({
@@ -51,6 +56,8 @@ const AuthModal = ({
     lastName: '',
     email: '',
     phone: '',
+    isPhoneVerified: false,
+    phoneLocked: false,
     password: '',
     confirmPassword: '',
     ...initialData // Spread initial data to pre-fill fields
@@ -77,9 +84,6 @@ const AuthModal = ({
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [loginAttempts, setLoginAttempts] = useState(0);
-  const [isLocked, setIsLocked] = useState(false);
-  const [lockUntil, setLockUntil] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -117,20 +121,6 @@ const AuthModal = ({
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    if (lockUntil && lockUntil > Date.now()) {
-      setIsLocked(true);
-      const timer = setTimeout(() => {
-        setIsLocked(false);
-        setLockUntil(null);
-        setLoginAttempts(0);
-      }, lockUntil - Date.now());
-      return () => clearTimeout(timer);
-    } else {
-      setIsLocked(false);
-    }
-  }, [lockUntil]);
-
   // ---------------------------
   // Form Helpers
   // ---------------------------
@@ -141,6 +131,8 @@ const AuthModal = ({
       lastName: '',
       email: '',
       phone: '',
+      isPhoneVerified: false,
+      phoneLocked: false,
       password: '',
       confirmPassword: ''
     });
@@ -148,7 +140,6 @@ const AuthModal = ({
     setShowPassword(false);
     setShowConfirmPassword(false);
     setFieldErrors({});
-    setLoginAttempts(0);
     setPasswordStrength(0);
     setAcceptedTerms(false);
     setResetSent(false);
@@ -171,12 +162,6 @@ const AuthModal = ({
   const switchToForgotPassword = () => {
     setMode('forgot-password');
     clearError();
-  };
-
-  const getRemainingLockTime = () => {
-    if (!lockUntil || !isLocked) return 0;
-    const remaining = lockUntil - Date.now();
-    return Math.ceil(remaining / 60000);
   };
 
   // ---------------------------
@@ -206,17 +191,6 @@ const AuthModal = ({
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
 
-    if (isLocked) {
-      const remainingTime = getRemainingLockTime();
-      Swal.fire({
-        title: 'Account Locked',
-        text: `Account is locked. Please try again in ${remainingTime} minute(s).`,
-        icon: 'warning',
-        confirmButtonColor: '#f97316'
-      });
-      return;
-    }
-
     const validationErrors = validateLogin();
     if (Object.keys(validationErrors).length > 0) {
       setFieldErrors(validationErrors);
@@ -233,26 +207,13 @@ const AuthModal = ({
     const result = await login(loginData);
 
     if (!result.success) {
-      if (result.lockUntil) {
-        setIsLocked(true);
-        setLockUntil(new Date(result.lockUntil).getTime());
-        const remainingTime = Math.ceil((new Date(result.lockUntil) - new Date()) / (60 * 1000));
-        setFieldErrors({
-          login: `Invalid credentials. Account is locked. Please try again in ${remainingTime} minutes.`
-        });
-      } else {
-        setFieldErrors({
-          login: result.error || 'Invalid email or password'
-        });
-        setLoginAttempts(prev => prev + 1);
-      }
+      setFieldErrors({
+        login: result.error || 'wrong credentials'
+      });
       return;
     }
 
     // Success
-    setLoginAttempts(0);
-    setLockUntil(null);
-    setIsLocked(false);
     if (onSuccess) onSuccess();
     onClose();
   };
@@ -389,6 +350,7 @@ const AuthModal = ({
       firstName: signupData.firstName.trim(),
       lastName: signupData.lastName.trim(),
       ...(signupData.phone && { phone: signupData.phone.trim() }),
+      isPhoneVerified: Boolean(signupData.isPhoneVerified),
       metadata: {
         registrationSource: 'manual',
         ipAddress: '',
@@ -399,13 +361,17 @@ const AuthModal = ({
     const result = await signup(userData);
 
     if (result && result.requiresOtp) {
+      if (!allowOtpStep || signupData.isPhoneVerified) {
+        return;
+      }
+
       setMode('otp-login');
       setSignupData(prev => ({ ...prev, phone: result.phone }));
       return;
     }
 
     if (result && result.success) {
-      if (onSuccess) onSuccess();
+      if (onSuccess) onSuccess(result.user);
       onClose();
     }
   };
@@ -574,40 +540,12 @@ const AuthModal = ({
 
         {/* Content */}
         <div className="p-6">
-          {/* Account locked warning */}
-          {isLocked && mode === 'login' && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <div className="flex items-start gap-3">
-                <Shield className="w-5 h-5 text-red-600 mt-0.5" />
-                <div className="flex-1">
-                  <h3 className="font-medium text-red-800">Account Locked</h3>
-                  <p className="text-sm text-red-700 mt-1">
-                    Too many failed login attempts. Please try again in{' '}
-                    {getRemainingLockTime()} minute(s).
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Global error */}
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span className="text-sm">{error}</span>
-              </div>
-            </div>
-          )}
-
-          {/* Login attempts warning */}
-          {loginAttempts > 0 && !isLocked && mode === 'login' && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span className="text-sm">
-                  {loginAttempts} failed attempt(s). Account will be locked after 5 attempts.
-                </span>
               </div>
             </div>
           )}
@@ -637,13 +575,13 @@ const AuthModal = ({
               setShowPassword={setShowPassword}
               fieldErrors={fieldErrors}
               loading={loading}
-              isLocked={isLocked}
               onForgotPassword={switchToForgotPassword}
               onSwitchToSignup={switchToSignup}
               withMathCaptcha={mathCaptcha}
               withMathAnswer={mathAnswer}
               setMathAnswer={setMathAnswer}
               setRecaptchaToken={setCaptchaToken}
+              onShowLegal={setLegalModalType}
             />
           )}
 
@@ -668,6 +606,7 @@ const AuthModal = ({
               withMathCaptcha={mathCaptcha}
               withMathAnswer={mathAnswer}
               setMathAnswer={setMathAnswer}
+              onShowLegal={setLegalModalType}
             />
 
           )}
@@ -716,6 +655,21 @@ const AuthModal = ({
           )}
         </div>
       </div>
+
+      {/* Legal Modal overlay */}
+      {legalModalType && (
+        <LegalModal
+          isOpen={true}
+          onClose={() => setLegalModalType(null)}
+          title={legalModalType === 'terms' ? 'Terms of Service' : 'Privacy Policy'}
+        >
+          {legalModalType === 'terms' ? (
+            <Terms isModal={true} onComplete={() => setLegalModalType('privacy')} />
+          ) : (
+            <Privacy isModal={true} onComplete={() => setLegalModalType(null)} />
+          )}
+        </LegalModal>
+      )}
     </div>
   );
 };
@@ -731,12 +685,12 @@ const LoginForm = ({
   setShowPassword,
   fieldErrors,
   loading,
-  isLocked,
   onForgotPassword,
   onSwitchToSignup,
   withMathCaptcha,
   withMathAnswer,
-  setMathAnswer
+  setMathAnswer,
+  onShowLegal
 }) => (
   <form onSubmit={handleLoginSubmit} className="space-y-4">
     {/* Email */}
@@ -751,7 +705,7 @@ const LoginForm = ({
           type="email"
           value={loginData.email}
           onChange={handleLoginChange}
-          disabled={isLocked || loading}
+          disabled={loading}
           className={`w-full pl-10 pr-3 py-2.5 rounded-lg border ${fieldErrors.email
             ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
             : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500'
@@ -786,7 +740,7 @@ const LoginForm = ({
           type={showPassword ? 'text' : 'password'}
           value={loginData.password}
           onChange={handleLoginChange}
-          disabled={isLocked || loading}
+          disabled={loading}
           className={`w-full pl-10 pr-10 py-2.5 rounded-lg border ${fieldErrors.password
             ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
             : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500'
@@ -797,7 +751,7 @@ const LoginForm = ({
         <button
           type="button"
           onClick={() => setShowPassword(p => !p)}
-          disabled={isLocked || loading}
+          disabled={loading}
           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label={showPassword ? 'Hide password' : 'Show password'}
         >
@@ -838,7 +792,7 @@ const LoginForm = ({
     {/* Submit button */}
     <button
       type="submit"
-      disabled={loading || isLocked}
+      disabled={loading}
       className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-medium rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
     >
       {loading ? (
@@ -882,9 +836,9 @@ const LoginForm = ({
     <div className="mt-6 text-center">
       <p className="text-xs text-gray-500">
         By signing in, you agree to our{' '}
-        <button type="button" className="text-orange-600 hover:underline">Terms</button>{' '}
+        <button type="button" onClick={() => onShowLegal('terms')} className="text-orange-600 hover:underline">Terms</button>{' '}
         and{' '}
-        <button type="button" className="text-orange-600 hover:underline">Privacy Policy</button>
+        <button type="button" onClick={() => onShowLegal('privacy')} className="text-orange-600 hover:underline">Privacy Policy</button>
       </p>
     </div>
   </form>
@@ -909,7 +863,8 @@ const SignupForm = ({
   getStrengthColor,
   withMathCaptcha,
   withMathAnswer,
-  setMathAnswer
+  setMathAnswer,
+  onShowLegal
 }) => (
 
   <form onSubmit={handleSignupSubmit} className="space-y-4">
@@ -966,9 +921,17 @@ const SignupForm = ({
 
     {/* Phone */}
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        Phone Number
-      </label>
+      <div className="flex items-center justify-between mb-1">
+        <label className="block text-sm font-medium text-gray-700">
+          Phone Number
+        </label>
+        {signupData.isPhoneVerified && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-green-700">
+            <CheckCircle2 className="h-3 w-3" />
+            Verified
+          </span>
+        )}
+      </div>
       <div className="relative">
         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
@@ -976,15 +939,20 @@ const SignupForm = ({
           type="tel"
           value={signupData.phone}
           onChange={handleSignupChange}
-          disabled={loading}
+          disabled={loading || signupData.phoneLocked}
           className={`w-full pl-10 pr-3 py-2.5 rounded-lg border ${fieldErrors.phone
             ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
             : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500'
-            } focus:ring-2 focus:ring-opacity-20 transition-colors disabled:bg-gray-50 disabled:cursor-not-allowed`}
+            } focus:ring-2 focus:ring-opacity-20 transition-colors disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed`}
           placeholder="+61 412 345 678"
           autoComplete="tel"
         />
       </div>
+      {signupData.phoneLocked && (
+        <p className="mt-1 text-xs text-gray-500">
+          This number was already verified by OTP and cannot be changed in this step.
+        </p>
+      )}
       {fieldErrors.phone && (
         <p className="mt-1 text-xs text-red-600">{fieldErrors.phone}</p>
       )}
@@ -1146,11 +1114,11 @@ const SignupForm = ({
         />
         <span className="text-sm text-gray-600">
           I agree to the{' '}
-          <button type="button" className="text-orange-600 hover:underline">
+          <button type="button" onClick={() => onShowLegal('terms')} className="text-orange-600 hover:underline">
             Terms of Service
           </button>{' '}
           and{' '}
-          <button type="button" className="text-orange-600 hover:underline">
+          <button type="button" onClick={() => onShowLegal('privacy')} className="text-orange-600 hover:underline">
             Privacy Policy
           </button>
         </span>

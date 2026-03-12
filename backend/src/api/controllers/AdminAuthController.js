@@ -3,6 +3,7 @@ const Admin = require('../../models/Admin');
 const TokenService = require('../../services/auth/TokenService');
 const AuditLog = require('../../models/AuditLog');
 const logger = require('../../utils/logger');
+const mongoose = require('mongoose');
 
 class AdminAuthController {
     /**
@@ -87,9 +88,25 @@ class AdminAuthController {
     static async login(req, res, next) {
         try {
             const { email, password } = req.body;
+            const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+
+            // Fail fast when DB is unavailable to avoid buffering timeout -> 500
+            if (mongoose.connection.readyState !== 1) {
+                return res.status(503).json({
+                    success: false,
+                    error: 'Authentication service temporarily unavailable'
+                });
+            }
+
+            if (!normalizedEmail || typeof password !== 'string' || !password) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Email and password are required'
+                });
+            }
 
             // Find admin
-            const admin = await Admin.findOne({ email: email.toLowerCase() }).select('+passwordHash');
+            const admin = await Admin.findOne({ email: normalizedEmail }).select('+passwordHash');
 
             if (!admin) {
                 return res.status(401).json({
@@ -106,7 +123,19 @@ class AdminAuthController {
             }
 
             // Verify password
-            const isPasswordValid = await admin.comparePassword(password);
+            let isPasswordValid = false;
+            try {
+                isPasswordValid = await admin.comparePassword(password);
+            } catch (passwordError) {
+                logger.warn('Admin password comparison failed', {
+                    email: normalizedEmail,
+                    message: passwordError.message
+                });
+                return res.status(401).json({
+                    success: false,
+                    error: 'Invalid email or password'
+                });
+            }
 
             if (!isPasswordValid) {
                 return res.status(401).json({
@@ -115,9 +144,11 @@ class AdminAuthController {
                 });
             }
 
-            // Update last login
-            admin.lastLoginAt = new Date();
-            await admin.save();
+            // Update last login without validating full legacy document shape
+            await Admin.updateOne(
+                { _id: admin._id },
+                { $set: { lastLoginAt: new Date() } }
+            );
 
             // Generate tokens
             const accessToken = TokenService.generateAccessToken(admin._id);

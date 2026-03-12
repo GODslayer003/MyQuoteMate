@@ -96,12 +96,27 @@ class JobController {
         });
       }
 
+      const validLeadSources = new Set([
+        'free_upload',
+        'web_upload',
+        'guest_upload',
+        'landing_page',
+        'referral',
+        'other'
+      ]);
+      const normalizedSource = typeof metadata?.source === 'string'
+        ? metadata.source.trim().toLowerCase()
+        : '';
+      const leadSource = validLeadSources.has(normalizedSource)
+        ? normalizedSource
+        : (req.user ? 'web_upload' : 'guest_upload');
+
       // Find or create lead
       let lead = await Lead.findOne({ email: email.toLowerCase() });
       if (!lead) {
         lead = await Lead.create({
           email: email.toLowerCase(),
-          source: metadata.source || 'free_upload',
+          source: leadSource,
           isGuest: !req.user, // Mark as guest if no authenticated user
           guestUploadedAt: !req.user ? new Date() : undefined,
           metadata: {
@@ -839,44 +854,179 @@ class JobController {
         }
       }
 
-      // 3. Extract text from results for comparison
-      // We assume results are already processed. If not, we can't compare.
-      const processedResults = jobs.filter(j => j.result).map(j => ({
-        jobId: j.jobId,
-        name: j.metadata?.title || 'Quote',
-        cost: j.result.overallCost || 0,
-        rawText: j.result.detailedReview // Use detailedReview as a proxy for the full extracted text if full text isn't saved in Result
-      }));
+      const normalizeText = (value) => {
+        if (typeof value !== 'string') return '';
+        const cleaned = value.replace(/\s+/g, ' ').trim();
+        if (!cleaned || /^["'`]+$/.test(cleaned) || cleaned.toLowerCase() === 'not provided') return '';
+        return cleaned;
+      };
+
+      const deriveResultCost = (resultDoc) => {
+        if (!resultDoc) return 0;
+        if (Number.isFinite(resultDoc.overallCost)) return resultDoc.overallCost;
+        if (Array.isArray(resultDoc.costBreakdown)) {
+          return resultDoc.costBreakdown.reduce((sum, item) => sum + (item.totalPrice || item.amount || 0), 0);
+        }
+        return 0;
+      };
+
+      const buildFallbackComparison = (results) => {
+        const quotes = results.map((r, idx) => ({
+          index: idx,
+          name: r.name || `Quote ${idx + 1}`,
+          cost: Number(r.cost) || 0,
+          strengths: [
+            `Estimated total: $${(Number(r.cost) || 0).toLocaleString()} AUD`,
+            (r.redFlagsCount || 0) === 0
+              ? 'No major red flags detected in available analysis.'
+              : `${r.redFlagsCount} risk flag(s) identified for follow-up.`
+          ],
+          weaknesses: [
+            (r.redFlagsCount || 0) > 0
+              ? `${r.redFlagsCount} flagged risks require clarification before approval.`
+              : 'Validate scope inclusions and exclusions with the contractor.'
+          ]
+        }));
+
+        const maxCost = Math.max(1, ...results.map(r => Number(r.cost) || 0));
+        const maxFlags = Math.max(1, ...results.map(r => Number(r.redFlagsCount) || 0));
+
+        const winnerIndex = results.reduce((bestIdx, r, idx) => {
+          const best = results[bestIdx];
+          const bestScore = ((Number(best.cost) || 0) / maxCost) * 0.65 + ((Number(best.redFlagsCount) || 0) / maxFlags) * 0.35;
+          const currentScore = ((Number(r.cost) || 0) / maxCost) * 0.65 + ((Number(r.redFlagsCount) || 0) / maxFlags) * 0.35;
+          return currentScore < bestScore ? idx : bestIdx;
+        }, 0);
+
+        const cheapest = results.reduce((a, b) => ((Number(a.cost) || 0) <= (Number(b.cost) || 0) ? a : b), results[0]);
+        const mostExpensive = results.reduce((a, b) => ((Number(a.cost) || 0) >= (Number(b.cost) || 0) ? a : b), results[0]);
+        const spread = Math.max(0, (Number(mostExpensive.cost) || 0) - (Number(cheapest.cost) || 0));
+
+        return {
+          quotes,
+          winner: {
+            index: winnerIndex,
+            reason: `${results[winnerIndex].name} currently shows the strongest cost-to-risk balance based on extracted totals and detected risk flags. Confirm scope details before final approval.`
+          },
+          betterApproach: `${results[winnerIndex].name} appears to be the most balanced technical choice when cost and identified risk indicators are considered together.`,
+          relativePricing: `Price spread across submitted quotes is $${spread.toLocaleString()} AUD.`,
+          valueAssessment: `${results[winnerIndex].name} is presently the strongest value candidate from available comparison data.`,
+          keyDifferences: [
+            `Lowest cost: ${cheapest.name} ($${(Number(cheapest.cost) || 0).toLocaleString()}).`,
+            `Highest cost: ${mostExpensive.name} ($${(Number(mostExpensive.cost) || 0).toLocaleString()}).`,
+            `Total spread between highest and lowest quote: $${spread.toLocaleString()} AUD.`
+          ],
+          disclaimer: 'Comparison is informational and based on extracted quote data.'
+        };
+      };
+
+      const sanitizeComparison = (incomingComparison, results) => {
+        const fallback = buildFallbackComparison(results);
+        const incoming = incomingComparison || {};
+
+        const quotes = results.map((r, idx) => {
+          const sourceQuote = Array.isArray(incoming.quotes)
+            ? incoming.quotes.find(q => Number(q?.index) === idx) || incoming.quotes[idx]
+            : null;
+          const strengths = Array.isArray(sourceQuote?.strengths)
+            ? sourceQuote.strengths.map(normalizeText).filter(Boolean).slice(0, 5)
+            : [];
+          const weaknesses = Array.isArray(sourceQuote?.weaknesses)
+            ? sourceQuote.weaknesses.map(normalizeText).filter(Boolean).slice(0, 5)
+            : [];
+
+          return {
+            index: idx,
+            name: normalizeText(sourceQuote?.name) || r.name || `Quote ${idx + 1}`,
+            cost: Number.isFinite(sourceQuote?.cost) ? Number(sourceQuote.cost) : (Number(r.cost) || 0),
+            strengths: strengths.length ? strengths : fallback.quotes[idx].strengths,
+            weaknesses: weaknesses.length ? weaknesses : fallback.quotes[idx].weaknesses
+          };
+        });
+
+        const incomingWinnerIndex = Number.isInteger(incoming?.winner?.index)
+          ? incoming.winner.index
+          : fallback.winner.index;
+        const winnerIndex = incomingWinnerIndex >= 0 && incomingWinnerIndex < results.length
+          ? incomingWinnerIndex
+          : fallback.winner.index;
+
+        const keyDifferences = Array.isArray(incoming.keyDifferences)
+          ? incoming.keyDifferences.map(normalizeText).filter(Boolean).slice(0, 7)
+          : [];
+
+        return {
+          quotes,
+          winner: {
+            index: winnerIndex,
+            reason: normalizeText(incoming?.winner?.reason) || fallback.winner.reason
+          },
+          betterApproach: normalizeText(incoming.betterApproach) || fallback.betterApproach,
+          relativePricing: normalizeText(incoming.relativePricing) || fallback.relativePricing,
+          valueAssessment: normalizeText(incoming.valueAssessment) || fallback.valueAssessment,
+          keyDifferences: keyDifferences.length ? keyDifferences : fallback.keyDifferences,
+          disclaimer: normalizeText(incoming.disclaimer) || fallback.disclaimer
+        };
+      };
+
+      // 3. Extract rich result content for AI comparison
+      const processedResults = jobs.filter(j => j.result).map(j => {
+        const resultDoc = j.result;
+        const redFlagsCount = Array.isArray(resultDoc.redFlags) ? resultDoc.redFlags.length : 0;
+        const rawText = [
+          resultDoc.summary,
+          resultDoc.detailedReview,
+          Array.isArray(resultDoc.redFlags)
+            ? resultDoc.redFlags.map(flag => `${flag.title || ''}: ${flag.description || ''}`).join('\n')
+            : ''
+        ].filter(Boolean).join('\n\n');
+
+        return {
+          jobId: j.jobId,
+          name: j.metadata?.title || `Quote ${j.jobId}`,
+          cost: deriveResultCost(resultDoc),
+          redFlagsCount,
+          rawText
+        };
+      });
 
       if (processedResults.length < 2) {
         return res.status(400).json({ success: false, error: 'Detailed results missing for one or more jobs' });
       }
 
-      // 4. Call AI to compare
+      // 4. Call AI to compare, with deterministic fallback for production reliability
       const AIOrchestrator = require('../../services/ai/AIOrchestrator');
-      const comparisonData = await AIOrchestrator.compareQuotes(processedResults, {
-        workCategory: jobs[0].metadata?.workCategory
-      });
+      let comparisonData;
+      try {
+        comparisonData = await AIOrchestrator.compareQuotes(processedResults, {
+          workCategory: jobs[0].metadata?.workCategory
+        });
+      } catch (aiError) {
+        logger.warn('AI comparison failed, using deterministic fallback', {
+          error: aiError.message,
+          jobIds
+        });
+        comparisonData = {
+          comparison: buildFallbackComparison(processedResults),
+          aiResponse: {
+            model: 'rule_based_fallback',
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0
+          }
+        };
+      }
+
+      const normalizedComparison = sanitizeComparison(comparisonData?.comparison, processedResults);
 
       // 4.1 Persist comparison data back to results
-      if (comparisonData && comparisonData.comparison) {
-        const comp = comparisonData.comparison;
-        await Promise.all(jobs.map(async (job) => {
-          if (job.result) {
-            job.result.quoteComparison = {
-              quotes: comp.quotes || [],
-              winner: comp.winner || {},
-              betterApproach: comp.betterApproach || '',
-              relativePricing: comp.relativePricing || '',
-              valueAssessment: comp.valueAssessment || '',
-              keyDifferences: comp.keyDifferences || [],
-              disclaimer: comp.disclaimer || ''
-            };
-            await job.result.save();
-            logger.info(`Comparison data persisted to Result ${job.result._id} for Job ${job.jobId}`);
-          }
-        }));
-      }
+      await Promise.all(jobs.map(async (job) => {
+        if (job.result) {
+          job.result.quoteComparison = normalizedComparison;
+          await job.result.save();
+          logger.info(`Comparison data persisted to Result ${job.result._id} for Job ${job.jobId}`);
+        }
+      }));
 
       // 5. Premium Credit Enforcement: Drain remaining credits and revert to Free
       if (req.user) {
@@ -894,7 +1044,8 @@ class JobController {
         success: true,
         data: {
           jobIds,
-          ...comparisonData
+          ...comparisonData,
+          comparison: normalizedComparison
         }
       });
     } catch (error) {

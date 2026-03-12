@@ -206,7 +206,9 @@ class AIProcessor {
         verdict: this.normalizeVerdict(verdict.label, verdict.score),
         verdictScore: verdict.score !== undefined ? (verdict.score > 10 ? verdict.score / 10 : verdict.score) : 8.0,
         verdictJustification: verdict.reasoning || null,
-        detailedReview: analysis.detailedReview || null,
+        detailedReview: Array.isArray(analysis.detailedReview)
+          ? analysis.detailedReview.join('\n')
+          : analysis.detailedReview || null,
         overallCost: calculatedCost,
         costBreakdown: this.ensureCostBreakdown(analysis.costBreakdown, calculatedCost),
         redFlags: this.ensureRedFlags(analysis.redFlags, analysis.summary),

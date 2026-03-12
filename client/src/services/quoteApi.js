@@ -9,11 +9,12 @@ class QuoteApi {
   }
 
   // Create a new job (upload quote for analysis)
-  async createJob({ email, file, tier = 'free', metadata = {} }) {
+  async createJob({ email, file, tier = 'free', metadata = {}, exhaust = false }) {
     const formData = new FormData();
     formData.append('document', file);
     formData.append('email', email);
     formData.append('tier', tier);
+    formData.append('exhaust', String(exhaust));
     formData.append('metadata', JSON.stringify(metadata));
 
     const response = await api.post('/jobs', formData, {

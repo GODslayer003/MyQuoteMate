@@ -15,6 +15,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from "../hooks/useAuth";
 import Swal from 'sweetalert2';
+import LegalModal from '../components/LegalModal';
+import Terms from './Terms';
+import Privacy from './Privacy';
 
 const SignUpModal = ({ isOpen, onClose, onSwitchToLogin, showForgotPassword = false }) => {
   const { login, loading, error, clearError } = useAuth();
@@ -34,6 +37,7 @@ const SignUpModal = ({ isOpen, onClose, onSwitchToLogin, showForgotPassword = fa
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showForgotPasswordForm, setShowForgotPasswordForm] = useState(showForgotPassword);
+  const [legalModalType, setLegalModalType] = useState(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -505,11 +509,11 @@ const SignUpModal = ({ isOpen, onClose, onSwitchToLogin, showForgotPassword = fa
                     />
                     <span className="text-sm text-gray-600">
                       I agree to the{' '}
-                      <button type="button" className="text-orange-600 hover:underline">
+                      <button type="button" onClick={() => setLegalModalType('terms')} className="text-orange-600 hover:underline">
                         Terms of Service
                       </button>{' '}
                       and{' '}
-                      <button type="button" className="text-orange-600 hover:underline">
+                      <button type="button" onClick={() => setLegalModalType('privacy')} className="text-orange-600 hover:underline">
                         Privacy Policy
                       </button>
                     </span>
@@ -604,6 +608,21 @@ const SignUpModal = ({ isOpen, onClose, onSwitchToLogin, showForgotPassword = fa
         onClick={onClose}
         aria-hidden="true"
       />
+
+      {/* Legal Modal overlay */}
+      {legalModalType && (
+        <LegalModal
+          isOpen={true}
+          onClose={() => setLegalModalType(null)}
+          title={legalModalType === 'terms' ? 'Terms of Service' : 'Privacy Policy'}
+        >
+          {legalModalType === 'terms' ? (
+            <Terms isModal={true} onComplete={() => setLegalModalType('privacy')} />
+          ) : (
+            <Privacy isModal={true} onComplete={() => setLegalModalType(null)} />
+          )}
+        </LegalModal>
+      )}
     </div>
   );
 };

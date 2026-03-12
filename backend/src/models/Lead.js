@@ -11,7 +11,7 @@ const leadSchema = new mongoose.Schema({
   },
   source: {
     type: String,
-    enum: ['free_upload', 'landing_page', 'referral', 'other'],
+    enum: ['free_upload', 'web_upload', 'guest_upload', 'landing_page', 'referral', 'other'],
     default: 'free_upload'
   },
   isGuest: {

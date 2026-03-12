@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Lock, Unlock, ChevronDown, ChevronUp, Zap, Crown, Star, Download,
   FileText, AlertTriangle, Search, X, Database, BarChart2, TrendingUp, Clock
@@ -30,10 +30,137 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
   const [showTechnicalModal, setShowTechnicalModal] = useState(false);
 
   // Multi-Quote State
-  const [comparisonQuotes, setComparisonQuotes] = useState(jobResult?.allResults || [jobResult]); // Start with all results if batch, else current
+  const isPremiumComparisonTier =
+    userTier?.toLowerCase() === 'premium' || jobResult?.tier?.toLowerCase() === 'premium';
+
+  const buildQuoteSlots = (sourceResult, premiumMode = false) => {
+    const base = (sourceResult?.allResults && Array.isArray(sourceResult.allResults) && sourceResult.allResults.length)
+      ? sourceResult.allResults.slice(0, 3)
+      : (sourceResult ? [sourceResult] : []);
+
+    if (premiumMode) {
+      while (base.length < 3) base.push(null);
+    }
+    return base;
+  };
+
+  const [comparisonQuotes, setComparisonQuotes] = useState(() =>
+    buildQuoteSlots(jobResult, isPremiumComparisonTier)
+  );
   const [comparisonResult, setComparisonResult] = useState(jobResult?.quoteComparison || null);
   const [isUploadingQuote, setIsUploadingQuote] = useState(false);
   const [isComparing, setIsComparing] = useState(false);
+
+  useEffect(() => {
+    setComparisonQuotes(buildQuoteSlots(jobResult, isPremiumComparisonTier));
+    setComparisonResult(jobResult?.quoteComparison || null);
+  }, [jobResult, isPremiumComparisonTier]);
+
+  const getQuoteTotal = (quote) => {
+    if (!quote) return 0;
+    if (Number.isFinite(quote.overallCost)) return quote.overallCost;
+    if (Number.isFinite(quote.cost)) return quote.cost;
+    if (Array.isArray(quote.costBreakdown)) {
+      return quote.costBreakdown.reduce((sum, item) => sum + (item.totalPrice || item.amount || 0), 0);
+    }
+    return 0;
+  };
+
+  const normalizeComparisonText = (value) => {
+    if (typeof value !== 'string') return '';
+    const cleaned = value.replace(/\s+/g, ' ').trim();
+    if (!cleaned || /^["'`]+$/.test(cleaned) || cleaned.toLowerCase() === 'not provided') return '';
+    return cleaned;
+  };
+
+  const fallbackComparisonResult = useMemo(() => {
+    let available = comparisonQuotes
+      .map((quote, index) => ({ quote, index }))
+      .filter(({ quote }) => quote);
+
+    if (available.length < 2 && Array.isArray(comparisonResult?.quotes) && comparisonResult.quotes.length >= 2) {
+      available = comparisonResult.quotes.map((quote, idx) => ({
+        quote: {
+          metadata: { title: quote?.name || `Quote ${idx + 1}` },
+          overallCost: Number(quote?.cost) || 0,
+          redFlags: []
+        },
+        index: Number.isInteger(quote?.index) ? quote.index : idx
+      }));
+    }
+
+    if (available.length < 2) return null;
+
+    const enriched = available.map(({ quote, index }) => ({
+      index,
+      name: quote?.metadata?.title || `Quote ${index + 1}`,
+      cost: getQuoteTotal(quote),
+      flags: Array.isArray(quote?.redFlags) ? quote.redFlags.length : 0
+    }));
+
+    const maxCost = Math.max(1, ...enriched.map(q => q.cost));
+    const maxFlags = Math.max(1, ...enriched.map(q => q.flags));
+
+    const winner = enriched.reduce((best, current) => {
+      const bestScore = (best.cost / maxCost) * 0.7 + (best.flags / maxFlags) * 0.3;
+      const currentScore = (current.cost / maxCost) * 0.7 + (current.flags / maxFlags) * 0.3;
+      return currentScore < bestScore ? current : best;
+    }, enriched[0]);
+
+    const cheapest = enriched.reduce((a, b) => (a.cost <= b.cost ? a : b));
+    const mostExpensive = enriched.reduce((a, b) => (a.cost >= b.cost ? a : b));
+    const spread = Math.max(0, mostExpensive.cost - cheapest.cost);
+
+    return {
+      winner: {
+        index: winner.index,
+        reason: `${winner.name} currently offers the strongest cost-to-risk balance based on extracted totals and detected red flags. Verify scope inclusions before final sign-off.`
+      },
+      betterApproach: `${winner.name} appears to provide the best overall technical value when balancing project cost against identified risk indicators.`,
+      relativePricing: `Price spread across submitted quotes is $${spread.toLocaleString()} AUD.`,
+      valueAssessment: `${winner.name} is presently the best value candidate from available comparison data.`,
+      keyDifferences: [
+        `Lowest cost: ${cheapest.name} ($${cheapest.cost.toLocaleString()}).`,
+        `Highest cost: ${mostExpensive.name} ($${mostExpensive.cost.toLocaleString()}).`,
+        `Total price spread: $${spread.toLocaleString()} AUD.`
+      ]
+    };
+  }, [comparisonQuotes, comparisonResult]);
+
+  const effectiveComparisonResult = useMemo(() => {
+    const baseFallback = fallbackComparisonResult || {
+      winner: {
+        index: 0,
+        reason: 'Comparison summary was incomplete, so fallback logic was applied from available quote data.'
+      },
+      betterApproach: 'Technical approach details were not fully returned by AI. Review scope and exclusions across quotes.',
+      relativePricing: 'Relative pricing details were incomplete in AI output.',
+      valueAssessment: 'Value assessment was incomplete in AI output.',
+      keyDifferences: ['Detailed comparison points were not fully returned by AI output.']
+    };
+
+    if (!comparisonResult) return fallbackComparisonResult;
+
+    const keyDifferences = Array.isArray(comparisonResult.keyDifferences)
+      ? comparisonResult.keyDifferences.map(normalizeComparisonText).filter(Boolean)
+      : [];
+
+    const winnerIndex = Number.isInteger(comparisonResult?.winner?.index)
+      ? comparisonResult.winner.index
+      : baseFallback.winner.index;
+
+    return {
+      ...comparisonResult,
+      winner: {
+        index: winnerIndex,
+        reason: normalizeComparisonText(comparisonResult?.winner?.reason) || baseFallback.winner.reason
+      },
+      betterApproach: normalizeComparisonText(comparisonResult?.betterApproach) || baseFallback.betterApproach,
+      relativePricing: normalizeComparisonText(comparisonResult?.relativePricing) || baseFallback.relativePricing,
+      valueAssessment: normalizeComparisonText(comparisonResult?.valueAssessment) || baseFallback.valueAssessment,
+      keyDifferences: keyDifferences.length ? keyDifferences : baseFallback.keyDifferences
+    };
+  }, [comparisonResult, fallbackComparisonResult]);
 
   // --- CHART HELPERS & DATA ---
   const chartData = jobResult?.visualizations || {
@@ -321,6 +448,39 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
   // Use mock data if jobResult is not provided
   const displayResult = jobResult || mockJobResult;
 
+  const normalizeDetailedReview = (value) => {
+    if (Array.isArray(value)) {
+      return value
+        .map(item => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean);
+    }
+
+    if (typeof value !== 'string') {
+      return [];
+    }
+
+    const normalized = value
+      .replace(/\r/g, '\n')
+      .replace(/[•●▪◦]/g, '\n')
+      .replace(/[✓✔]/g, '\n')
+      .replace(/[⚠]/g, '\n')
+      .trim();
+
+    let points = normalized
+      .split(/\n+/)
+      .map(part => part.replace(/^[-*]\s*/, '').trim())
+      .filter(Boolean);
+
+    if (points.length <= 1) {
+      points = normalized
+        .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
+        .map(part => part.replace(/^[-*]\s*/, '').trim())
+        .filter(Boolean);
+    }
+
+    return points.filter(point => point.length > 8);
+  };
+
   // Normalize tier names to lowercase - PRIORITIZE jobResult.tier if it exists
   const effectiveTier = jobResult?.tier || userTier;
   const normalizedTier = effectiveTier?.toLowerCase() === 'standard' ? 'standard' :
@@ -394,8 +554,8 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
       description: 'Line-by-line breakdown of all costs',
       icon: '🔍',
       tier: 'standard',
-      content: displayResult?.detailedReview || 'Performing detailed analysis...',
-      isList: false
+      content: normalizeDetailedReview(displayResult?.detailedReview),
+      isList: true
     },
     questions: {
       title: 'Questions to Ask',
@@ -531,111 +691,78 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
       );
     }
 
-    // Handle Quote Comparison (Premium feature with interactive flow)
+    // Detailed Cost Section (Premium): Show all quotes with breakdowns
+    if (featureKey === 'costBreakdown' && (normalizedTier === 'premium')) {
+      // Show all uploaded quotes (2 or 3) in a grid
+      return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {comparisonQuotes.map((q, idx) => (
+            <div key={idx} className="relative flex flex-col border-2 rounded-2xl min-h-[320px] bg-white p-5 shadow-sm">
+              <div className="flex justify-between items-start mb-3">
+                <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-100">
+                  <FileText className="w-5 h-5 text-gray-400" />
+                </div>
+                <span className="text-[10px] font-bold text-gray-400 uppercase">{idx === 0 ? 'Primary Quote' : `Quote ${idx + 1}`}</span>
+              </div>
+              <h4 className="font-bold text-gray-900 truncate mb-1" title={q?.metadata?.title}>
+                {q?.metadata?.title || (idx === 0 ? 'Primary Quote' : `Quote ${idx + 1}`)}
+              </h4>
+              {q
+                ? <p className="text-2xl font-black text-gray-900 mb-2">${(q.overallCost || q.cost || (q.costBreakdown ? q.costBreakdown.reduce((sum, item) => sum + (item.totalPrice || item.amount || 0), 0) : 0)).toLocaleString()}</p>
+                : <p className="text-lg font-bold text-gray-400 italic mb-2">Not Provided</p>}
+              {/* Cost breakdown for each quote */}
+              {q && Array.isArray(q.costBreakdown) && q.costBreakdown.length > 0 ? (
+                <div className="flex flex-col flex-1 mt-2">
+                  <div className="text-xs font-bold text-gray-500 mb-1">Cost Breakdown</div>
+                  <div className="overflow-y-auto max-h-[220px] rounded-xl border border-gray-100 bg-white">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 sticky top-0 z-10">
+                        <tr>
+                          <th className="p-2 text-left font-bold text-gray-600">Item</th>
+                          <th className="p-2 text-center font-bold text-gray-600">Qty</th>
+                          <th className="p-2 text-right font-bold text-gray-600">Unit Price</th>
+                          <th className="p-2 text-right font-bold text-gray-600">Total</th>
+                          <th className="p-2 text-center font-bold text-gray-600">Category</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {q.costBreakdown.map((item, idx2) => (
+                          <tr key={idx2} className="border-b last:border-0 hover:bg-blue-50/30 transition-colors">
+                            <td className="p-2 text-gray-900 font-medium whitespace-pre-line break-words max-w-[180px]">{item.description || item.item}</td>
+                            <td className="p-2 text-center">{item.quantity || 1}</td>
+                            <td className="p-2 text-right">${(item.unitPrice || item.amount || 0).toLocaleString()}</td>
+                            <td className="p-2 text-right font-bold text-gray-900">${(item.totalPrice || item.amount || 0).toLocaleString()}</td>
+                            <td className="p-2 text-center">
+                              <span className="inline-flex px-2 py-1 rounded text-[10px] font-semibold bg-gray-100 text-gray-700 uppercase">{item.category || 'other'}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-2 text-right text-sm font-black text-green-700">Total: {(q.overallCost || q.cost || q.costBreakdown.reduce((sum, item) => sum + (item.totalPrice || item.amount || 0), 0)).toLocaleString()} AUD</div>
+                </div>
+              ) : (
+                <div className="mt-2 text-xs text-gray-400 italic text-center">No cost breakdown available.</div>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // Quote Comparison Section (Premium): Restore previous logic
     if (featureKey === 'comparison') {
-      const handleFileUpload = async (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        try {
-          setIsUploadingQuote(true);
-          const toastId = toast.loading(`Uploading and analyzing ${file.name}...`);
-
-          const newJob = await quoteApi.createJob({
-            email: jobResult.leadId?.email || 'guest@myquotemate.ai',
-            file,
-            tier: 'premium',
-            metadata: { title: file.name.split('.')[0] }
-          });
-
-          // Poll for completion
-          const result = await quoteApi.pollJobStatus(newJob.jobId);
-          const fullResult = await quoteApi.getJobResult(newJob.jobId);
-
-          const newQuotes = [...comparisonQuotes, { ...fullResult, jobId: newJob.jobId, metadata: { title: file.name.split('.')[0] } }];
-          setComparisonQuotes(newQuotes);
-
-          toast.success(`Quote "${file.name.split('.')[0]}" ready!`, { id: toastId });
-
-          if (newQuotes.length >= 2) {
-            handleRunComparison(newQuotes);
-          }
-        } catch (err) {
-          console.error('Upload failed:', err);
-          toast.error('Failed to process additional quote.');
-        } finally {
-          setIsUploadingQuote(false);
-        }
-      };
-
-      const handleSelectRecentQuote = async () => {
-        try {
-          const jobs = await quoteApi.getUserJobs();
-          // Filter out current jobs and maybe only keep recent premium ones
-          const availableJobs = jobs.filter(j =>
-            j.jobId !== jobResult.jobId &&
-            !comparisonQuotes.some(q => q.jobId === j.jobId) &&
-            j.status === 'completed'
-          ).slice(0, 10);
-
-          if (availableJobs.length === 0) {
-            toast.error('No other completed quotes found to compare.');
-            return;
-          }
-
-          const { value: selectedJobId } = await Swal.fire({
-            title: 'Compare with Recent Quote',
-            input: 'select',
-            inputOptions: availableJobs.reduce((acc, j) => ({
-              ...acc,
-              [j.jobId]: `${j.metadata?.title || 'Untitled'} - $${(j.result?.overallCost || 0).toLocaleString()}`
-            }), {}),
-            inputPlaceholder: 'Select a quote...',
-            showCancelButton: true,
-            confirmButtonColor: '#000000',
-            confirmButtonText: 'Add to Comparison'
-          });
-
-          if (selectedJobId) {
-            const jobData = await quoteApi.getJobResult(selectedJobId);
-            const newQuotes = [...comparisonQuotes, { ...jobData, jobId: selectedJobId, metadata: availableJobs.find(j => j.jobId === selectedJobId)?.metadata }];
-            setComparisonQuotes(newQuotes);
-
-            if (newQuotes.length >= 2) {
-              handleRunComparison(newQuotes);
-            }
-          }
-        } catch (err) {
-          console.error('Failed to fetch recent quotes:', err);
-          toast.error('Failed to load recent quotes.');
-        }
-      };
-
-      const handleRunComparison = async (quotes) => {
-        try {
-          setIsComparing(true);
-          const jobIds = quotes.map(q => q.jobId);
-          const result = await quoteApi.compareQuotes(jobIds);
-          setComparisonResult(result.comparison || result);
-          toast.success('Comparison updated!');
-        } catch (err) {
-          console.error('Comparison failed:', err);
-          toast.error('Failed to generate comparison.');
-        } finally {
-          setIsComparing(false);
-        }
-      };
-
       return (
         <div className="space-y-6">
-          {/* Comparison Dashboard */}
+          {/* Comparison Dashboard - Always show 3 slots for premium */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {comparisonQuotes.map((q, idx) => (
-              <div key={idx} className={`relative p-5 border-2 rounded-2xl transition-all ${comparisonResult?.winner?.index === idx
+              <div key={idx} className={`relative p-5 border-2 rounded-2xl min-h-[220px] bg-white ${q && effectiveComparisonResult?.winner?.index === idx
                 ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-200'
                 : 'border-gray-100 bg-white hover:border-gray-200 shadow-sm'
                 }`}>
-                {comparisonResult?.winner?.index === idx && (
+                {q && effectiveComparisonResult?.winner?.index === idx && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 bg-amber-500 text-white text-[10px] font-black rounded-full shadow-md uppercase tracking-wider">
                     <Crown className="w-3 h-3" />
                     Technical Winner
@@ -647,10 +774,12 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
                   </div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase">Quote {idx + 1}</span>
                 </div>
-                <h4 className="font-bold text-gray-900 truncate mb-1" title={q.metadata?.title}>
-                  {q.metadata?.title || (idx === 0 ? 'Primary Quote' : `Quote ${idx + 1}`)}
+                <h4 className="font-bold text-gray-900 truncate mb-1" title={q?.metadata?.title}>
+                  {q?.metadata?.title || (idx === 0 ? 'Primary Quote' : `Quote ${idx + 1}`)}
                 </h4>
-                <p className="text-2xl font-black text-gray-900">${(q.overallCost || q.cost || 0).toLocaleString()}</p>
+                {q
+                  ? <p className="text-2xl font-black text-gray-900">${(q.overallCost || q.cost || (q.costBreakdown ? q.costBreakdown.reduce((sum, item) => sum + (item.totalPrice || item.amount || 0), 0) : 0)).toLocaleString()}</p>
+                  : <p className="text-lg font-bold text-gray-400 italic">Not Provided</p>}
               </div>
             ))}
           </div>
@@ -662,7 +791,7 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
               <p className="font-bold text-gray-900">AI Identifying Better Approach...</p>
               <p className="text-sm text-gray-500">Cross-referencing technical details and 2026 market rates</p>
             </div>
-          ) : comparisonResult && (
+          ) : effectiveComparisonResult && (
             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="p-6 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl shadow-sm">
                 <div className="flex items-center gap-2 mb-4">
@@ -675,7 +804,7 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
                   </div>
                 </div>
                 <div className="prose prose-sm prose-amber max-w-none text-amber-900 leading-relaxed font-medium">
-                  {comparisonResult.winner?.reason?.split('\n\n').map((p, i) => {
+                  {effectiveComparisonResult.winner?.reason?.split('\n\n').map((p, i) => {
                     const isOpinionLine = p.toLowerCase().includes('in my opinion') || p.toLowerCase().includes('conclusion:');
                     return (
                       <p key={i} className={`mb-4 last:mb-0 ${isOpinionLine ? 'p-4 bg-white/60 border-l-4 border-amber-600 rounded-r-lg font-black text-base' : ''}`}>
@@ -691,14 +820,14 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
                   <h5 className="font-bold text-blue-900 mb-3 flex items-center gap-2 uppercase tracking-wider text-xs">
                     <Zap className="w-4 h-4" /> Technical Approach Analysis
                   </h5>
-                  <p className="text-sm text-blue-800 leading-relaxed font-medium">{comparisonResult.betterApproach}</p>
+                  <p className="text-sm text-blue-800 leading-relaxed font-medium">{effectiveComparisonResult.betterApproach}</p>
                 </div>
                 <div className="p-6 bg-indigo-50 border border-indigo-100 rounded-2xl shadow-sm">
                   <h5 className="font-bold text-indigo-900 mb-3 flex items-center gap-2 uppercase tracking-wider text-xs">
                     <Search className="w-4 h-4" /> Granular Comparison Points
                   </h5>
                   <ul className="space-y-2.5">
-                    {comparisonResult.keyDifferences?.map((diff, i) => (
+                    {effectiveComparisonResult.keyDifferences?.map((diff, i) => (
                       <li key={i} className="flex items-start gap-2.5 text-sm text-indigo-800 font-medium">
                         <span className="w-2 h-2 rounded-full bg-indigo-400 mt-1.5 flex-shrink-0 shadow-sm" />
                         {diff}
@@ -713,12 +842,12 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
                   <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Final Value Assessment</p>
                   <Zap className="w-3 h-3 text-amber-400" />
                 </div>
-                <p className="text-sm text-gray-200 leading-relaxed font-medium italic">"{comparisonResult.valueAssessment}"</p>
+                <p className="text-sm text-gray-200 leading-relaxed font-medium italic">{effectiveComparisonResult.valueAssessment}</p>
               </div>
             </div>
           )}
 
-          {!comparisonResult && !isComparing && comparisonQuotes.length < 2 && (
+          {!effectiveComparisonResult && !isComparing && comparisonQuotes.filter(q => q).length < 2 && (
             <div className="p-12 text-center bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl">
               <Search className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <h4 className="text-lg font-bold text-gray-900 mb-2">Ready for Comparison</h4>
@@ -1326,7 +1455,7 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
             )}
 
             {/* Premium Comparison Matrix */}
-            {normalizedTier === 'premium' && comparisonResult && (
+            {normalizedTier === 'premium' && effectiveComparisonResult && (
               <div className="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden shadow-xl mb-8">
                 <div className="bg-gradient-to-r from-amber-600 to-amber-700 px-5 py-4 border-b border-gray-700 flex justify-between items-center">
                   <h3 className="font-black text-white flex items-center gap-2 uppercase tracking-widest text-sm">
@@ -1339,7 +1468,7 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
                   <div className="bg-white/5 border border-white/10 rounded-xl p-5 border-l-4 border-l-amber-500">
                     <h4 className="text-amber-400 font-bold mb-3 uppercase text-[10px] tracking-widest">AI Professional Verdict</h4>
                     <p className="text-gray-200 text-sm leading-relaxed italic">
-                      {comparisonResult.winner?.reason?.split('\n\n')[0]}
+                      {effectiveComparisonResult.winner?.reason?.split('\n\n')[0]}
                     </p>
                   </div>
 
@@ -1348,7 +1477,7 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
                     <div className="bg-blue-900/20 border border-blue-500/20 rounded-xl p-5">
                       <h4 className="text-blue-400 font-bold mb-3 uppercase text-[10px] tracking-widest">Strategic Methodology</h4>
                       <p className="text-gray-300 text-xs leading-relaxed">
-                        {comparisonResult.betterApproach}
+                        {effectiveComparisonResult.betterApproach}
                       </p>
                     </div>
 
@@ -1356,7 +1485,7 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
                     <div className="bg-indigo-900/20 border border-indigo-500/20 rounded-xl p-5">
                       <h4 className="text-indigo-400 font-bold mb-3 uppercase text-[10px] tracking-widest">Differentiators</h4>
                       <ul className="space-y-2">
-                        {comparisonResult.keyDifferences?.slice(0, 4).map((diff, i) => (
+                        {effectiveComparisonResult.keyDifferences?.slice(0, 4).map((diff, i) => (
                           <li key={i} className="flex items-start gap-2 text-[11px] text-gray-300">
                             <Zap className="w-3 h-3 text-amber-500 mt-0.5 flex-shrink-0" />
                             {diff}
@@ -1370,7 +1499,7 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
                   <div className="bg-green-900/20 border border-green-500/20 rounded-xl p-4">
                     <h4 className="text-green-400 font-bold mb-2 uppercase text-[10px] tracking-widest">Market Value Assessment</h4>
                     <p className="text-gray-300 text-[11px] leading-relaxed">
-                      {comparisonResult.valueAssessment}
+                      {effectiveComparisonResult.valueAssessment}
                     </p>
                   </div>
                 </div>
@@ -1827,3 +1956,4 @@ const AnalysisResults = ({ jobResult, userTier = 'free', onCompare }) => {
 };
 
 export default AnalysisResults;
+

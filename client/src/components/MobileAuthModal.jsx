@@ -20,6 +20,17 @@ import { useEffect, useRef } from 'react';
 const MobileAuthModal = ({ isOpen, onClose, onSuccess, initialEmail = '', verifyOnly = false }) => {
     const { signup: register, login, sendOtp, verifyOtp } = useAuth();
 
+    const buildFullPhoneNumber = () => {
+        const sanitizedCountryCode = String(countryCode || '').replace(/[^\d+]/g, '');
+        let sanitizedLocalNumber = String(mobileNumber || '').replace(/\D/g, '');
+
+        if (sanitizedCountryCode.startsWith('+') && sanitizedLocalNumber.startsWith('0')) {
+            sanitizedLocalNumber = sanitizedLocalNumber.replace(/^0+/, '');
+        }
+
+        return `${sanitizedCountryCode}${sanitizedLocalNumber}`;
+    };
+
     const [step, setStep] = useState('mobile'); // mobile, otp, signup
     const [loading, setLoading] = useState(false);
 
@@ -59,39 +70,25 @@ const MobileAuthModal = ({ isOpen, onClose, onSuccess, initialEmail = '', verify
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Tracing logs for mountain/unmounting and state changes
-    useEffect(() => {
-        console.log('[MobileAuthModal] Mounted. Current step:', step);
-        return () => console.log('[MobileAuthModal] Unmounted');
-    }, []);
-
-    useEffect(() => {
-        console.log('[MobileAuthModal] Step changed to:', step);
-    }, [step]);
-
     if (!isOpen) return null;
 
     // --- Step 1: Mobile Input Logic ---
     const handleSendOtp = async (e) => {
         if (e) e.preventDefault();
 
-        const fullPhone = `${countryCode}${mobileNumber}`;
+        const fullPhone = buildFullPhoneNumber();
         if (!mobileNumber || mobileNumber.length < 7) {
             toast.error('Please enter a valid mobile number');
             return;
         }
 
         setLoading(true);
-        console.log('[MobileAuthModal] Sending OTP to:', fullPhone);
         try {
             const result = await sendOtp(fullPhone);
-            console.log('[MobileAuthModal] Send OTP Response:', result);
             if (result.success) {
                 toast.success(`OTP sent to ${countryCode} ${mobileNumber}`);
-                console.log('[MobileAuthModal] Success received, setting step to: otp');
                 setStep('otp');
             } else {
-                console.error('[MobileAuthModal] Send OTP Failed:', result.error);
                 toast.error(result.error || 'Failed to send OTP');
             }
         } catch (error) {
@@ -123,15 +120,19 @@ const MobileAuthModal = ({ isOpen, onClose, onSuccess, initialEmail = '', verify
             return;
         }
 
-        const fullPhone = `${countryCode}${mobileNumber}`;
+        const fullPhone = buildFullPhoneNumber();
         setLoading(true);
         try {
             const result = await verifyOtp(fullPhone, enteredOtp);
             if (result.success) {
-                toast.success('Mobile verified successfully!');
+                toast.success(result.existingUser ? 'Mobile verified and account signed in.' : 'Mobile verified successfully!');
 
                 if (verifyOnly) {
-                    onSuccess({ phone: fullPhone });
+                    onSuccess({
+                        phone: fullPhone,
+                        user: result.user || null,
+                        existingUser: Boolean(result.existingUser)
+                    });
                     onClose();
                 } else {
                     setStep('signup');
@@ -172,7 +173,7 @@ const MobileAuthModal = ({ isOpen, onClose, onSuccess, initialEmail = '', verify
                 lastName: userDetails.lastName,
                 email: userDetails.email,
                 password: userDetails.password,
-                phone: `${countryCode}${mobileNumber}`, // Add phone to user profile
+                phone: buildFullPhoneNumber(), // Add phone to user profile
                 isPhoneVerified: true
             };
 

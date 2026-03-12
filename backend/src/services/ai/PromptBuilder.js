@@ -125,7 +125,7 @@ ANALYSIS OBJECTIVES (STEP 2 - ONLY IF RELEVANT):
 4. Compare pricing to typical Australian market ranges (indicative only) and JUSTIFY your score. Use ONLY Australian data.
 5. Suggest 5-7 specific, hard-hitting clarification questions for the contractor that protect the homeowner.
 6. Provide a comprehensive, professional summary of the quote (at least 4-5 sentences).
-7. Generate a "Detailed Cost Review" section - a technical deep-dive into the pricing and scope.
+7. Generate a "Detailed Cost Review" section as concise bullet points, not paragraphs.
 
 OUTPUT JSON SCHEMA (PAID TIERS):
 {
@@ -141,7 +141,11 @@ OUTPUT JSON SCHEMA (PAID TIERS):
       "score": 8.5,
       "reasoning": "EXPLAIN IN EXACTLY 3 SENTENCES. MAXIMUM 450 CHARACTERS. Ground your analysis strictly in 2026 Australian market rates. The tone MUST MATCH the score."
     },
-    "detailedReview": "A rigorous, page-by-page textual analysis (2-3 paragraphs) of the quote's technical aspects, pricing strategy, and scope clarity. Ensure 100% accurate correlation with the extracted total cost. This is for Standard/Premium users.",
+    "detailedReview": [
+      "4-8 concise bullet points covering page-by-page findings, pricing observations, missing scope details, and any mathematical inconsistencies.",
+      "Each point must be a standalone, professional observation.",
+      "Do not return paragraphs for this field."
+    ],
     "overallCost": 12500,
     "scopeOfWork": {
       "included": ["string"],

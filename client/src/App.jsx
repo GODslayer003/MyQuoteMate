@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import HeaderFooter from "./Layout/HeaderFooter";
 import { useAuth } from "./hooks/useAuth";
+import { AuthProvider } from "./providers/AuthProvider";
 
 import Landing from "./pages/Landing";
 import HowItWorks from "./pages/HowItWorks";
@@ -37,7 +38,7 @@ const ProtectedRoute = ({ children }) => {
 
 import ScrollToTop from "./components/ScrollToTop";
 
-export default function App() {
+function AppContent() {
   return (
     <>
       <ScrollToTop />
@@ -80,5 +81,13 @@ export default function App() {
         </Routes>
       </HeaderFooter>
     </>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

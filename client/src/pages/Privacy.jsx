@@ -30,7 +30,7 @@ import {
   Activity
 } from 'lucide-react';
 
-const Privacy = () => {
+const Privacy = ({ isModal = false, onComplete }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const navigate = useNavigate();
@@ -38,8 +38,8 @@ const Privacy = () => {
 
   useEffect(() => {
     setIsVisible(true);
-    window.scrollTo(0, 0);
-  }, []);
+    if (!isModal) window.scrollTo(0, 0);
+  }, [isModal]);
 
   const privacySections = [
     {
@@ -275,7 +275,8 @@ const Privacy = () => {
     if (currentStep < privacySections.length - 1) {
       setCurrentStep(prev => prev + 1);
     } else {
-      navigate('/contact');
+      if (isModal && onComplete) onComplete();
+      else navigate('/contact');
     }
   };
 
@@ -286,7 +287,7 @@ const Privacy = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white selection:bg-orange-200 relative overflow-hidden">
+    <div className={`${isModal ? 'min-h-full bg-transparent' : 'min-h-screen bg-white'} selection:bg-orange-200 relative overflow-hidden`}>
       {/* Dynamic Background Elements */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-gray-50/80 rounded-full blur-[120px] -mr-96 -mt-96"></div>
@@ -294,101 +295,151 @@ const Privacy = () => {
       </div>
 
       {/* Premium Header */}
-      <header className="relative pt-24 pb-12 sm:pt-32 sm:pb-20 overflow-hidden border-b border-gray-50">
-        <div className="absolute inset-0 bg-[url('/Australia.jpg')] bg-cover bg-center opacity-5 pointer-events-none grayscale"></div>
-        <div className="max-w-7xl mx-auto px-4 relative z-10">
-          <div className={`transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-gray-950 rounded-[1.5rem] flex items-center justify-center text-white shadow-2xl shadow-gray-950/30 -rotate-3 transition-transform hover:rotate-3">
-                  <Shield className="w-8 h-8" />
-                </div>
-                <div>
-                  <span className="text-gray-400 font-bold tracking-widest uppercase text-xs block mb-1">Protective Framework</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-950 font-bold text-sm uppercase">Privacy Notice</span>
-                    <Sparkles className="w-4 h-4 text-orange-500 animate-pulse" />
+      {!isModal && (
+        <header className="relative pt-24 pb-12 sm:pt-32 sm:pb-20 overflow-hidden border-b border-gray-50">
+          <div className="absolute inset-0 bg-[url('/Australia.jpg')] bg-cover bg-center opacity-5 pointer-events-none grayscale"></div>
+          <div className="max-w-7xl mx-auto px-4 relative z-10">
+            <div className={`transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-gray-950 rounded-[1.5rem] flex items-center justify-center text-white shadow-2xl shadow-gray-950/30 -rotate-3 transition-transform hover:rotate-3">
+                    <Shield className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <span className="text-gray-400 font-bold tracking-widest uppercase text-xs block mb-1">Protective Framework</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-950 font-bold text-sm uppercase">Privacy Notice</span>
+                      <Sparkles className="w-4 h-4 text-orange-500 animate-pulse" />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-gray-900 mb-4 sm:mb-6 leading-tight tracking-tight px-2">
-              Data <br />
-              <span className="bg-gradient-to-r from-orange-500 to-amber-600 bg-clip-text text-transparent mt-1 sm:mt-2">
-                Security
-              </span>
-            </h1>
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-gray-900 mb-4 sm:mb-6 leading-tight tracking-tight px-2">
+                Data <br />
+                <span className="bg-gradient-to-r from-orange-500 to-amber-600 bg-clip-text text-transparent mt-1 sm:mt-2">
+                  Security
+                </span>
+              </h1>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* Interactive Flow Layout */}
-      <main ref={contentRef} className="relative py-12 sm:py-20 lg:pb-40" style={{ scrollMarginTop: '20px' }}>
-        <div className="max-w-5xl mx-auto px-4">
+      <main ref={contentRef} className={`relative ${isModal ? 'py-4 sm:py-8' : 'py-12 sm:py-20 lg:pb-40'}`} style={{ scrollMarginTop: '20px' }}>
+        <div className="max-w-5xl mx-auto px-2 sm:px-4">
 
           {/* Main Card Container */}
-          <div className={`relative transition-all duration-700 bg-white rounded-[4rem] p-8 sm:p-16 border border-gray-100 shadow-[0_32px_120px_-20px_rgba(0,0,0,0.08)] min-h-[600px] flex flex-col ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+          <div className={`relative transition-all duration-700 bg-white ${isModal ? 'rounded-3xl p-6 sm:p-10 shadow-sm border-gray-100' : 'rounded-[4rem] p-8 sm:p-16 border border-gray-100 shadow-[0_32px_120px_-20px_rgba(0,0,0,0.08)]'} min-h-[600px] flex flex-col ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
 
-            {/* Step Content */}
-            <div key={currentStep} className="flex-grow animate-in fade-in slide-in-from-right-8 duration-700">
-              <div className="flex flex-col md:flex-row md:items-center gap-6 mb-12">
-                <div className={`w-20 h-20 rounded-3xl bg-gradient-to-br from-gray-50 to-orange-50 flex items-center justify-center text-gray-950 shadow-xl shadow-gray-900/5`}>
-                  {currentSection.icon}
-                </div>
-                <div>
-                  <h2 className="text-3xl sm:text-5xl font-bold text-gray-950 tracking-tight italic mb-2">
-                    {currentSection.title}
-                  </h2>
-                  <p className="text-gray-400 font-bold text-lg max-w-xl leading-snug">
-                    {currentSection.description}
+            {isModal ? (
+              <div className="flex flex-col gap-12 sm:gap-16 fade-in animate-in duration-700 pb-16">
+                <div className="mb-2">
+                  <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4 tracking-tight">
+                    Privacy Policy
+                  </h1>
+                  <p className="text-gray-500 text-lg leading-relaxed">
+                    We take your privacy seriously. Here is how we handle and protect your data.
                   </p>
                 </div>
-              </div>
-
-              <div className="relative z-10 mb-12">
-                {currentSection.content}
-              </div>
-            </div>
-
-            {/* Pagination Controls */}
-            <div className="mt-auto pt-10 border-t border-gray-50 flex flex-col sm:flex-row items-center justify-between gap-8">
-
-              {/* Progress Dots */}
-              <div className="flex gap-3">
-                {privacySections.map((s, i) => (
-                  <button
-                    key={s.id}
-                    onClick={() => setCurrentStep(i)}
-                    className={`h-3 rounded-full transition-all duration-700 ${currentStep === i ? 'w-16 bg-orange-600' : 'w-3 bg-gray-100 hover:bg-orange-200'}`}
-                    aria-label={`Go to step ${i + 1}`}
-                  />
-                ))}
-              </div>
-
-              {/* Navigation Buttons */}
-              <div className="flex items-center gap-4 w-full sm:w-auto">
-                <button
-                  onClick={handleBack}
-                  disabled={currentStep === 0}
-                  className="w-16 h-16 rounded-full border border-gray-100 flex items-center justify-center text-gray-400 hover:text-orange-600 hover:border-orange-200 transition-all disabled:opacity-0 active:scale-90"
-                >
-                  <ArrowRight className="w-8 h-8 rotate-180" />
-                </button>
-
-                <button
-                  onClick={handleNext}
-                  className="flex-grow sm:flex-initial flex items-center justify-center gap-6 px-12 py-6 bg-gray-950 text-white rounded-[2.5rem] font-bold group hover:bg-orange-600 transition-all shadow-2xl shadow-gray-950/20 active:scale-95"
-                >
-                  <span className="text-xl uppercase tracking-tight">
-                    {currentStep === privacySections.length - 1 ? 'Get Support' : 'Next Step'}
-                  </span>
-                  <div className="p-2 bg-white/10 rounded-full group-hover:bg-white/20 transition-colors">
-                    <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
+                {privacySections.map((section, idx) => (
+                  <div key={section.id} className="relative group">
+                    {idx !== privacySections.length - 1 && (
+                      <div className="absolute left-10 top-24 bottom-[-4rem] w-px bg-gradient-to-b from-gray-200 to-transparent hidden md:block opacity-40 group-hover:opacity-100 transition-opacity"></div>
+                    )}
+                    <div className="flex flex-col md:flex-row md:items-start gap-6 mb-8">
+                      <div className="w-20 h-20 shrink-0 rounded-3xl bg-gradient-to-br from-gray-50 to-orange-50 flex items-center justify-center text-gray-950 shadow-xl shadow-gray-900/5 transition-transform group-hover:scale-105">
+                        {section.icon}
+                      </div>
+                      <div className="pt-2">
+                        <h2 className="text-2xl sm:text-3xl font-bold text-gray-950 tracking-tight italic mb-3">
+                          {section.title}
+                        </h2>
+                        <p className="text-gray-500 font-medium text-lg max-w-2xl leading-relaxed">
+                          {section.description}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="relative z-10 md:pl-[6.5rem] prose prose-orange max-w-none prose-headings:font-bold prose-headings:tracking-tight">
+                      {section.content}
+                    </div>
                   </div>
-                </button>
+                ))}
+
+                <div className="mt-12 pt-8 border-t border-gray-100 flex justify-end sticky bottom-0 bg-white/80 backdrop-blur-md pb-4 z-20">
+                  <button
+                    onClick={() => { if (onComplete) onComplete() }}
+                    className="px-10 py-4 bg-gray-950 text-white rounded-full font-bold hover:bg-orange-600 transition-all shadow-xl shadow-gray-950/10 active:scale-95 flex items-center gap-3"
+                  >
+                    <span className="uppercase tracking-wide text-sm">Accept & Close</span>
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Step Content */}
+                <div key={currentStep} className="flex-grow animate-in fade-in slide-in-from-right-8 duration-700">
+                  <div className="flex flex-col md:flex-row md:items-center gap-6 mb-12">
+                    <div className={`w-20 h-20 rounded-3xl bg-gradient-to-br from-gray-50 to-orange-50 flex items-center justify-center text-gray-950 shadow-xl shadow-gray-900/5`}>
+                      {currentSection.icon}
+                    </div>
+                    <div>
+                      <h2 className="text-3xl sm:text-5xl font-bold text-gray-950 tracking-tight italic mb-2">
+                        {currentSection.title}
+                      </h2>
+                      <p className="text-gray-400 font-bold text-lg max-w-xl leading-snug">
+                        {currentSection.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="relative z-10 mb-12">
+                    {currentSection.content}
+                  </div>
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="mt-auto pt-10 border-t border-gray-50 flex flex-col sm:flex-row items-center justify-between gap-8">
+
+                  {/* Progress Dots */}
+                  <div className="flex gap-3">
+                    {privacySections.map((s, i) => (
+                      <button
+                        key={s.id}
+                        onClick={() => setCurrentStep(i)}
+                        className={`h-3 rounded-full transition-all duration-700 ${currentStep === i ? 'w-16 bg-orange-600' : 'w-3 bg-gray-100 hover:bg-orange-200'}`}
+                        aria-label={`Go to step ${i + 1}`}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Navigation Buttons */}
+                  <div className="flex items-center gap-4 w-full sm:w-auto">
+                    <button
+                      onClick={handleBack}
+                      disabled={currentStep === 0}
+                      className="w-16 h-16 rounded-full border border-gray-100 flex items-center justify-center text-gray-400 hover:text-orange-600 hover:border-orange-200 transition-all disabled:opacity-0 active:scale-90"
+                    >
+                      <ArrowRight className="w-8 h-8 rotate-180" />
+                    </button>
+
+                    <button
+                      onClick={handleNext}
+                      className="flex-grow sm:flex-initial flex items-center justify-center gap-6 px-12 py-6 bg-gray-950 text-white rounded-[2.5rem] font-bold group hover:bg-orange-600 transition-all shadow-2xl shadow-gray-950/20 active:scale-95"
+                    >
+                      <span className="text-xl uppercase tracking-tight">
+                        {currentStep === privacySections.length - 1 ? 'Get Support' : 'Next Step'}
+                      </span>
+                      <div className="p-2 bg-white/10 rounded-full group-hover:bg-white/20 transition-colors">
+                        <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Secure Legend */}
@@ -405,12 +456,14 @@ const Privacy = () => {
           </div>
 
           {/* Nav CTA */}
-          <div className="mt-12 flex items-center justify-center gap-6">
-            <Link to="/terms" className="text-gray-400 font-bold uppercase tracking-widest text-xs hover:text-orange-600 transition-colors flex items-center gap-2">
-              <ArrowRight className="w-4 h-4 rotate-180" />
-              View Terms of Service
-            </Link>
-          </div>
+          {!isModal && (
+            <div className="mt-12 flex items-center justify-center gap-6">
+              <Link to="/terms" className="text-gray-400 font-bold uppercase tracking-widest text-xs hover:text-orange-600 transition-colors flex items-center gap-2">
+                <ArrowRight className="w-4 h-4 rotate-180" />
+                View Terms of Service
+              </Link>
+            </div>
+          )}
         </div>
       </main>
 

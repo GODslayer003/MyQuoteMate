@@ -672,19 +672,24 @@ class ReportService {
         // Logo (MUCH larger on cover)
         if (fs.existsSync(this.logoPath)) {
             try {
-                const logoWidth = 160; // Increased significantly
-                doc.image(this.logoPath, centerX - logoWidth / 2, 100, { width: logoWidth });
+                const logoWidth = 340;
+                const logoY = 90;
+                const coverLogoLift = 42;
+                doc.save();
+                doc.translate(0, -coverLogoLift);
+                doc.image(this.logoPath, centerX - logoWidth / 2, logoY, { width: logoWidth });
+                doc.restore();
             } catch (err) {
                 doc.fillColor(colors.primary)
                     .font('Helvetica-Bold')
-                    .fontSize(42)
-                    .text('MyQuoteMate', 0, 140, { align: 'center', width: pageWidth });
+                    .fontSize(50)
+                    .text('MyQuoteMate', 0, 110, { align: 'center', width: pageWidth });
             }
         } else {
             doc.fillColor(colors.primary)
                 .font('Helvetica-Bold')
                 .fontSize(42)
-                .text('MyQuoteMate', 0, 140, { align: 'center', width: pageWidth });
+                .text('MyQuoteMate', 0, 110, { align: 'center', width: pageWidth });
         }
 
         // Main title
@@ -2119,52 +2124,66 @@ class ReportService {
     /**
      * Draw ranked horizontal bar chart — professional alignment, no overflow
      */
-    drawHorizontalBarRanked(doc, x, y, width, data, barColor, maxBars) {
-        const nData = data.slice(0, maxBars || 6);
-        if (nData.length === 0) return;
+    drawHorizontalBarRanked(doc, x, y, width, height, data, barColor, maxBars) {
+        const requestedData = (data || [])
+            .slice(0, maxBars || 6)
+            .filter(item => item && Number.isFinite(item.value));
+
+        if (requestedData.length === 0 || width <= 0 || height <= 0) return;
+
+        const GAP = 6;
+        const MIN_BAR_H = 12;
+        const fitCount = Math.max(1, Math.min(
+            requestedData.length,
+            Math.floor((height + GAP) / (MIN_BAR_H + GAP))
+        ));
+        const nData = requestedData.slice(0, fitCount);
+        const rows = nData.length;
+        const BAR_H = Math.max(MIN_BAR_H, Math.floor((height - GAP * (rows - 1)) / rows));
         const maxVal = Math.max(...nData.map(d => Math.abs(d.value)), 1);
-        const BAR_H = 20;
-        const GAP = 9;
-        const LABEL_W = 155;   // Fixed label column
-        const VAL_W = 72;      // Fixed value column
-        const BAR_W = width - LABEL_W - VAL_W - 10;
+
+        const LABEL_W = Math.min(145, Math.max(112, Math.floor(width * 0.28)));
+        const VAL_W = 64;
+        const BAR_W = Math.max(90, width - LABEL_W - VAL_W - 10);
         const barX = x + LABEL_W + 5;
-        const COLORS = ['#f97316', '#fb923c', '#fdba74', '#fed7aa', '#3b82f6', '#60a5fa'];
+        const radius = Math.min(4, Math.floor(BAR_H / 2));
+        const textOffset = Math.max(2, Math.floor((BAR_H - 8) / 2));
+        const COLORS = [barColor || '#f97316', '#fb923c', '#fdba74', '#fed7aa', '#3b82f6', '#60a5fa'];
 
         nData.forEach((item, idx) => {
             const barY = y + idx * (BAR_H + GAP);
             const fillW = Math.max(4, (Math.abs(item.value) / maxVal) * BAR_W);
             const color = item.color || COLORS[idx % COLORS.length];
 
-            // Label — right-aligned, no line break, capped
-            const label = (item.label || '').substring(0, 30);
-            doc.fillColor('#374151').font('Helvetica').fontSize(8.5)
-                .text(label, x, barY + 5, { width: LABEL_W - 5, align: 'right', lineBreak: false });
+            // Label: right-aligned and capped to avoid collisions.
+            const label = (item.label || '').substring(0, 26);
+            doc.fillColor('#374151').font('Helvetica').fontSize(8)
+                .text(label, x, barY + textOffset, { width: LABEL_W - 5, align: 'right', lineBreak: false });
 
             // Bar rail
             doc.save();
-            doc.fillColor('#eef2ff').roundedRect(barX, barY, BAR_W, BAR_H, 4).fill();
+            doc.fillColor('#eef2ff').roundedRect(barX, barY, BAR_W, BAR_H, radius).fill();
             doc.restore();
 
             // Bar fill
             doc.save();
-            doc.fillColor(color).roundedRect(barX, barY, fillW, BAR_H, 4).fill();
+            doc.fillColor(color).roundedRect(barX, barY, fillW, BAR_H, radius).fill();
             doc.restore();
 
-            // Value — inside bar if wide, otherwise after bar
-            const valText = item.formatted || `$${Math.abs(item.value).toLocaleString()}`;
-            if (fillW > 58) {
-                doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(8)
-                    .text(valText, barX + 6, barY + 5, { width: fillW - 10, lineBreak: false });
+            // Value: inside bar if wide enough, otherwise on the right.
+            const valText = item.formatted || ('$' + Math.abs(item.value).toLocaleString());
+            if (fillW > 52) {
+                doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(7.5)
+                    .text(valText, barX + 6, barY + textOffset, { width: fillW - 10, lineBreak: false });
             } else {
-                doc.fillColor('#374151').font('Helvetica-Bold').fontSize(8)
-                    .text(valText, barX + fillW + 5, barY + 5, { width: VAL_W - 5, lineBreak: false });
+                doc.fillColor('#374151').font('Helvetica-Bold').fontSize(7.5)
+                    .text(valText, barX + fillW + 5, barY + textOffset, { width: VAL_W - 5, lineBreak: false });
             }
         });
     }
 
     /**
-     * Vertical savings bar chart — properly spaced, no overflow
+     * Vertical savings bar chart - compact layout with keyed legend
      */
     drawSavingsChart(doc, x, y, width, height, recommendations) {
         const recs = (recommendations || []).filter(r => r.potentialSavings > 0).slice(0, 5);
@@ -2174,13 +2193,33 @@ class ReportService {
             return;
         }
 
+        const actionKeys = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+        const toSavingsSentence = (rec, index) => {
+            const titleText = String(rec.title || '').replace(/\s+/g, ' ').trim();
+            const fallbackText = String(rec.description || '').replace(/\s+/g, ' ').trim();
+            const baseText = titleText || fallbackText;
+            if (!baseText) {
+                return `${actionKeys[index]}. Savings opportunity identified.`;
+            }
+
+            const source = titleText || (fallbackText.split(/(?<=[.!?])\s+/)[0].trim() || fallbackText);
+            const keyPrefixPattern = new RegExp(`^${actionKeys[index]}\\.\\s*`, 'i');
+            const normalizedSource = source.replace(keyPrefixPattern, '').trim();
+            return `${actionKeys[index]}. ${/[.!?]$/.test(normalizedSource) ? normalizedSource : `${normalizedSource}.`}`;
+        };
+
         const maxSavings = Math.max(...recs.map(r => r.potentialSavings));
-        const LABEL_H = 28;  // Label zone below bars
-        const VAL_H = 14;    // Value zone above bars
-        const chartH = height - LABEL_H - VAL_H;
-        const STEP = Math.floor((width - 4) / recs.length);
-        const BAR_W = Math.min(38, STEP - 10);
+        const defCols = recs.length > 3 ? 2 : 1;
+        const defRows = Math.ceil(recs.length / defCols);
+        const DEF_ROW_H = 24;
+        const DEF_BLOCK_H = defRows * DEF_ROW_H + 8;
+        const LETTER_H = 18;
+        const VAL_H = 16;
+        const chartH = Math.max(36, height - DEF_BLOCK_H - LETTER_H - VAL_H - 12);
+        const STEP = Math.floor((width - 8) / recs.length);
+        const BAR_W = Math.min(40, STEP - 14);
         const BAR_COLORS = ['#10b981', '#059669', '#047857', '#f59e0b', '#3b82f6'];
+        const chartBottomY = y + VAL_H + chartH;
 
         recs.forEach((rec, idx) => {
             const barX = x + 2 + idx * STEP + Math.floor((STEP - BAR_W) / 2);
@@ -2188,30 +2227,46 @@ class ReportService {
             const barY = y + VAL_H + chartH - barH;
             const color = BAR_COLORS[idx % BAR_COLORS.length];
 
-            // Bar
             doc.save();
             doc.fillColor(color).roundedRect(barX, barY, BAR_W, barH, 3).fill();
             doc.restore();
 
-            // Value above bar — compact format
             const savings = rec.potentialSavings >= 1000
                 ? `$${(rec.potentialSavings / 1000).toFixed(1)}k`
                 : `$${rec.potentialSavings}`;
             doc.fillColor('#064e3b').font('Helvetica-Bold').fontSize(7)
                 .text(savings, barX - 4, barY - 11, { width: BAR_W + 8, align: 'center', lineBreak: false });
 
-            // Label below bar — capped to 10 chars
-            const title = (rec.title || '').substring(0, 10);
-            doc.fillColor('#6b7280').font('Helvetica').fontSize(7)
-                .text(title, barX - 4, y + VAL_H + chartH + 4,
-                    { width: BAR_W + 8, align: 'center', lineBreak: false });
+            doc.fillColor('#475569').font('Helvetica-Bold').fontSize(8.5)
+                .text(actionKeys[idx], barX - 4, chartBottomY + 6, { width: BAR_W + 8, align: 'center', lineBreak: false });
+        });
+
+        const definitionY = chartBottomY + LETTER_H + 8;
+        const defGap = 14;
+        const defColW = defCols === 1 ? width : Math.floor((width - defGap) / 2);
+
+        recs.forEach((rec, idx) => {
+            const col = idx % defCols;
+            const row = Math.floor(idx / defCols);
+            const itemX = x + col * (defColW + defGap);
+            const itemY = definitionY + row * DEF_ROW_H;
+
+            doc.fillColor(BAR_COLORS[idx % BAR_COLORS.length]).font('Helvetica-Bold').fontSize(7)
+                .text(actionKeys[idx], itemX, itemY, { width: 8, lineBreak: false });
+
+            doc.fillColor('#475569').font('Helvetica').fontSize(6.2)
+                .text(toSavingsSentence(rec, idx), itemX + 10, itemY, {
+                    width: defColW - 10,
+                    height: DEF_ROW_H,
+                    lineGap: 0.8
+                });
         });
     }
 
     /**
      * Risk severity summary bars — fixed widths, no overflow
      */
-    drawRiskSummaryBars(doc, x, y, width, redFlags) {
+    drawRiskSummaryBars(doc, x, y, width, redFlags, tier) {
         const severities = [
             { key: 'critical', label: 'Critical', color: '#dc2626', bg: '#fee2e2' },
             { key: 'high', label: 'High', color: '#ef4444', bg: '#fef2f2' },
@@ -2232,8 +2287,11 @@ class ReportService {
         severities.forEach((sev, idx) => {
             const cnt = counts[sev.key] || 0;
             const barY = y + idx * (BAR_H + GAP);
-            const fillW = cnt > 0 ? Math.max(8, (cnt / maxCount) * BAR_M) : 0;
+            const colors = tier === 'premium' ? this.colors.premium : this.colors.standard;
             const barX = x + LABEL_W + 4;
+
+            // Calculate fill width for each severity bar
+            const fillW = BAR_M * (cnt / maxCount);
 
             doc.fillColor('#374151').font('Helvetica-Bold').fontSize(8.5)
                 .text(sev.label, x, barY + 6, { width: LABEL_W, align: 'right', lineBreak: false });
@@ -2411,7 +2469,8 @@ class ReportService {
         const ROW2_H = 175;
         drawCard(margin, currentY, contentW, ROW2_H);
         cardLabel('TOP COST LINE ITEMS — RANKED BY VALUE', margin, currentY, contentW);
-
+        const topCostChartY = currentY + 30;
+        const topCostChartH = ROW2_H - 44;
         const sortedItems = (result.costBreakdown || []).slice()
             .sort((a, b) => (b.totalPrice || b.amount || 0) - (a.totalPrice || a.amount || 0));
         const barData = sortedItems.slice(0, 6).map(item => ({
@@ -2420,11 +2479,24 @@ class ReportService {
         }));
 
         if (barData.length > 0) {
-            this.drawHorizontalBarRanked(doc, margin + 8, currentY + 28, contentW - 16, barData, colors.primary, 6);
+            // Clip chart region so bars never spill into the next row.
+            doc.save();
+            doc.rect(margin + 6, topCostChartY - 2, contentW - 12, topCostChartH + 4).clip();
+            this.drawHorizontalBarRanked(
+                doc,
+                margin + 8,
+                topCostChartY,
+                contentW - 16,
+                topCostChartH,
+                barData,
+                colors.primary,
+                6
+            );
+            doc.restore();
         } else {
             doc.fillColor('#9ca3af').font('Helvetica').fontSize(9)
                 .text('No cost breakdown data available for this quote.',
-                    margin, currentY + ROW2_H / 2 - 9, { width: contentW, align: 'center' });
+                    margin, topCostChartY + topCostChartH / 2 - 9, { width: contentW, align: 'center' });
         }
 
         currentY += ROW2_H + 12;
@@ -2432,7 +2504,7 @@ class ReportService {
         // ═══════════════════════════════════════════════════════════════════
         // ROW 3: Savings Potential (left 50%) | Risk Severity Breakdown (right 50%)
         // ═══════════════════════════════════════════════════════════════════
-        const ROW3_H = Math.max(130, Math.min(footerY - currentY - 6, 148));
+        const ROW3_H = Math.max(140, Math.min(footerY - currentY - 6, 162));
         const halfW = Math.floor(contentW / 2) - 5;
         const rightX = margin + halfW + 10;
 
@@ -2456,7 +2528,7 @@ class ReportService {
             .text(`${totalFlags} FLAG${totalFlags !== 1 ? 'S' : ''}`, rightX + halfW - 62, currentY + 11,
                 { width: 50, align: 'center' });
 
-        this.drawRiskSummaryBars(doc, rightX + 8, currentY + 30, halfW - 16, result.redFlags);
+        this.drawRiskSummaryBars(doc, rightX + 8, currentY + 30, halfW - 16, result.redFlags, tier);
 
         this.addFooter(doc, job.jobId);
     }

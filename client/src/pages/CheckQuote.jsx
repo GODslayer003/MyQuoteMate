@@ -75,6 +75,7 @@ const CheckQuote = () => {
   const [verifiedPhone, setVerifiedPhone] = useState('');
   const [showMainAuthModal, setShowMainAuthModal] = useState(false);
   const [jobResult, setJobResult] = useState(null);
+  const [authFlowUser, setAuthFlowUser] = useState(null);
 
   // Auth & Payment Flow States
   const [showMobileAuthModal, setShowMobileAuthModal] = useState(false);
@@ -200,12 +201,91 @@ const CheckQuote = () => {
     }
   }, [phase]);
 
+  useEffect(() => {
+    if (!error) return;
+
+    Swal.fire({
+      title: 'Error',
+      text: error,
+      icon: 'error',
+      confirmButtonText: 'OK',
+      confirmButtonColor: '#dc2626',
+      customClass: {
+        container: 'font-sans',
+        popup: 'rounded-2xl',
+        confirmButton: 'rounded-lg font-bold px-6 py-2'
+      }
+    }).finally(() => {
+      setError(null);
+    });
+  }, [error]);
+
   // Clean up polling on unmount
   useEffect(() => {
     return () => {
       jobPollingService.stopAllPolls();
     };
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      setAuthFlowUser(user);
+      return;
+    }
+
+    if (!showMainAuthModal && !showMobileAuthModal) {
+      setAuthFlowUser(null);
+    }
+  }, [user, showMainAuthModal, showMobileAuthModal]);
+
+  const getActiveAnalysisUser = (userOverride = null) => userOverride || authFlowUser || user || null;
+  const resolvedAuthUser = getActiveAnalysisUser();
+  const resolvedPlan = temporaryTier || selectedPricingTier?.tier || resolvedAuthUser?.subscription?.plan || 'Free';
+  const resolvedPlanLower = resolvedPlan.toLowerCase();
+  const canCompareMultipleQuotes = resolvedPlanLower === 'premium';
+  const usesAdvancedProcessing = resolvedPlanLower === 'standard' || resolvedPlanLower === 'premium';
+
+  const getActiveTierSelection = () => {
+    if (temporaryTier) {
+      return { label: `${temporaryTier} Active`, tier: temporaryTier, kind: 'active' };
+    }
+
+    if (selectedPricingTier?.tier) {
+      return { label: `${selectedPricingTier.tier} Selected`, tier: selectedPricingTier.tier, kind: 'selected' };
+    }
+
+    if (resolvedAuthUser?.subscription?.plan === 'Premium' && resolvedAuthUser?.subscription?.credits > 0) {
+      return { label: 'Premium Available', tier: 'Premium', kind: 'active' };
+    }
+
+    if (resolvedAuthUser?.subscription?.plan === 'Standard' && resolvedAuthUser?.subscription?.credits > 0) {
+      return { label: 'Standard Available', tier: 'Standard', kind: 'active' };
+    }
+
+    if (resolvedAuthUser) {
+      const freeUsedThisMonth = resolvedAuthUser.subscription?.freeReportDate &&
+        new Date(resolvedAuthUser.subscription.freeReportDate).getMonth() === new Date().getMonth() &&
+        new Date(resolvedAuthUser.subscription.freeReportDate).getFullYear() === new Date().getFullYear();
+
+      return {
+        label: freeUsedThisMonth ? 'Monthly Free Report Used' : 'Free Report Available',
+        tier: 'Free',
+        kind: 'free'
+      };
+    }
+
+    return { label: 'Free Mode', tier: 'Free', kind: 'guest' };
+  };
+
+  const activeTierBadge = getActiveTierSelection();
+  const activeTierIsPremium = activeTierBadge.tier === 'Premium';
+  const activeTierIcon = activeTierIsPremium ? Sparkles : (activeTierBadge.kind === 'free' || activeTierBadge.kind === 'guest' ? Clock : Zap);
+  const activeTierBadgeClass = activeTierBadge.kind === 'free' || activeTierBadge.kind === 'guest'
+    ? 'bg-gray-100 text-gray-700 border border-gray-200'
+    : activeTierIsPremium
+      ? 'bg-gray-900 text-white border border-gray-800'
+      : 'bg-orange-500 text-white border border-orange-600';
+  const ActiveTierIcon = activeTierIcon;
 
   // Load user's job history
   const loadUserJobs = async () => {
@@ -279,11 +359,7 @@ const CheckQuote = () => {
     const selectedFiles = Array.from(e.target.files);
     if (selectedFiles.length === 0) return;
 
-    // Detect if user is in Premium mode (either via subscription or pricing selection)
-    const isPremiumTier = (user?.subscription?.plan?.toLowerCase() === 'premium') ||
-      (selectedPricingTier?.tier?.toLowerCase() === 'premium');
-
-    const analysisTier = isAuthenticated ? (user?.subscription?.plan || 'Free') : 'Free';
+    const isPremiumTier = canCompareMultipleQuotes;
 
     try {
       if (isPremiumTier || isComparisonMode) {
@@ -319,11 +395,7 @@ const CheckQuote = () => {
   };
 
   const validateForm = () => {
-    // Detect if user is in Premium mode (either via subscription or pricing selection)
-    const isPremiumTier = (user?.subscription?.plan?.toLowerCase() === 'premium') ||
-      (selectedPricingTier?.tier?.toLowerCase() === 'premium');
-
-    const analysisTier = isAuthenticated ? (user?.subscription?.plan || 'Free') : 'Free';
+    const isPremiumTier = canCompareMultipleQuotes;
 
     if (isPremiumTier || isComparisonMode) {
       if (files.length < 2) {
@@ -363,11 +435,13 @@ const CheckQuote = () => {
     checkPaymentAndAnalyze();
   };
 
-  const checkPaymentAndAnalyze = () => {
+  const checkPaymentAndAnalyze = (userOverride = null) => {
+    const activeUser = getActiveAnalysisUser(userOverride);
+
     // Check if user has a pending tier selection (Standard/Premium)
     if (selectedPricingTier && selectedPricingTier.tier !== 'Free') {
       // CRITICAL FIX: Check if user already has credits before showing payment modal
-      const hasCredits = user?.subscription?.credits > 0;
+      const hasCredits = (activeUser?.subscription?.credits || 0) > 0;
 
       if (hasCredits) {
         // User has credits - proceed directly to analysis
@@ -375,7 +449,7 @@ const CheckQuote = () => {
         setError(null);
         setSuccess(null);
         setIsAnalyzing(true);
-        performAnalysis();
+        performAnalysis(null, 0, activeUser);
         return;
       }
 
@@ -389,12 +463,24 @@ const CheckQuote = () => {
     setError(null);
     setSuccess(null);
     setIsAnalyzing(true);
-    performAnalysis();
+    performAnalysis(null, 0, activeUser);
   };
 
   // Called when Mobile Verification is successful (Step 1 of Guest Flow)
-  const handleMobileVerificationSuccess = (data) => {
-    // data contains { phone: ... }
+  const handleMobileVerificationSuccess = async (data) => {
+    if (data?.user) {
+      setShowMobileAuthModal(false);
+      setVerifiedPhone('');
+      const refreshedUser = await refreshUser();
+      const authenticatedUser = refreshedUser || data.user;
+      setAuthFlowUser(authenticatedUser);
+
+      setTimeout(() => {
+        checkPaymentAndAnalyze(authenticatedUser);
+      }, 300);
+      return;
+    }
+
     setVerifiedPhone(data.phone);
     setShowMobileAuthModal(false);
 
@@ -405,27 +491,31 @@ const CheckQuote = () => {
   };
 
   // Called when Main Auth Modal (Login/Signup) is successful
-  const handleMainAuthSuccess = () => {
+  const handleMainAuthSuccess = async (newUser) => {
     setShowMainAuthModal(false);
     setVerifiedPhone(''); // Clear temp state
+    const refreshedUser = await refreshUser();
+    setAuthFlowUser(refreshedUser || newUser || null);
 
     // Continue to payment flow
     setTimeout(() => {
-      checkPaymentAndAnalyze();
+      checkPaymentAndAnalyze(refreshedUser || newUser || null);
     }, 500);
   };
 
   // Legacy handler for MobileAuthModal full signup (if used elsewhere, keeping for safety)
-  const handleAuthSuccess = (newUser) => {
+  const handleAuthSuccess = async (newUser) => {
     // User just logged in/signed up via Mobile Modal
     setShowMobileAuthModal(false);
+    const refreshedUser = await refreshUser();
+    setAuthFlowUser(refreshedUser || newUser || null);
 
     // Continue flow
     toast.success(`Welcome, ${newUser.firstName}!`);
 
     // Small delay to allow state updates
     setTimeout(() => {
-      checkPaymentAndAnalyze();
+      checkPaymentAndAnalyze(refreshedUser || newUser || null);
     }, 500);
   };
 
@@ -499,7 +589,8 @@ const CheckQuote = () => {
       setSelectedPricingTier(null);
 
       // Refresh global user state
-      await refreshUser();
+      const refreshedUser = await refreshUser();
+      setAuthFlowUser(refreshedUser || null);
 
       toast.dismiss(loadingToast);
       toast.success(`Payment confirmed! You have ${confirmedCredits} credits.`);
@@ -512,7 +603,7 @@ const CheckQuote = () => {
       // Wait a moment to ensure state propagation
       setTimeout(() => {
         // Pass both the purchased tier AND the confirmed credit count
-        performAnalysis(purchasedTier, confirmedCredits);
+        performAnalysis(purchasedTier, confirmedCredits, refreshedUser || null);
       }, 500);
 
       // Clear temporary tier after a delay
@@ -526,14 +617,19 @@ const CheckQuote = () => {
     }
   };
 
-  const performAnalysis = async (overrideTier = null, confirmedCredits = 0) => {
+  const performAnalysis = async (overrideTier = null, confirmedCredits = 0, userOverride = null) => {
     try {
-      const analysisEmail = isAuthenticated ? user?.email : guestEmail;
+      const activeUser = getActiveAnalysisUser(userOverride);
+      const analysisEmail = activeUser?.email;
+      if (!analysisEmail) {
+        throw new Error('Authenticated email was not available for analysis. Please sign in again.');
+      }
+
       // Use overrideTier if provided (e.g. immediately after payment), otherwise use current user plan
-      const analysisTier = overrideTier || (isAuthenticated ? (user?.subscription?.plan || 'Free') : 'Free');
+      const analysisTier = overrideTier || (activeUser?.subscription?.plan || 'Free');
 
       // Check for available credits (either from state or confirmation)
-      const hasCredits = (user?.subscription?.credits > 0) || (confirmedCredits > 0);
+      const hasCredits = ((activeUser?.subscription?.credits || 0) > 0) || (confirmedCredits > 0);
 
       if (analysisTier.toLowerCase() === 'premium') {
         if (files.length < 2) {
@@ -1035,20 +1131,9 @@ WARRANTY: 6 years on workmanship`
         </div>
       </section>
 
-      {/* Error/Success Messages */}
-      {(error || success) && (
+      {/* Success Message */}
+      {success && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-              <div className="flex items-center gap-3">
-                <AlertCircle className="w-5 h-5 text-red-600" />
-                <div>
-                  <p className="font-medium text-red-800">Error</p>
-                  <p className="text-sm text-red-700">{error}</p>
-                </div>
-              </div>
-            </div>
-          )}
           {success && (
             <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
               <div className="flex items-center gap-3">
@@ -1246,44 +1331,12 @@ WARRANTY: 6 years on workmanship`
                       </div>
                       <div className="text-right">
                         <div className="text-sm text-gray-500 mb-1">Step 1 of 2</div>
-                        {user && (
-                          <div className="flex gap-2 justify-end">
-                            {/* Priority: Show Temporary (Purchased) or Selected Tier first */}
-                            {(temporaryTier || selectedPricingTier) ? (
-                              <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold shadow-sm ${(temporaryTier || selectedPricingTier.tier) === 'Premium'
-                                ? 'bg-gray-900 text-white border border-gray-800' // Blackish theme
-                                : 'bg-orange-500 text-white border border-orange-600' // Orangish theme
-                                }`}>
-                                <Zap className={`w-3 h-3 mr-1.5 ${(temporaryTier || selectedPricingTier.tier) === 'Premium' ? 'text-yellow-400' : 'text-white'}`} />
-                                {temporaryTier || selectedPricingTier.tier} {temporaryTier ? 'Active' : 'Selected'}
-                              </div>
-                            ) : (
-                              // Else show active subscription status
-                              <>
-                                {user.subscription?.plan === 'Premium' && user.subscription?.credits > 0 ? (
-                                  <div className="inline-flex items-center px-3 py-1 bg-gray-900 text-white rounded-full text-xs font-bold border border-gray-800 shadow-sm">
-                                    <Sparkles className="w-3 h-3 text-yellow-400 mr-1.5" />
-                                    Premium Available
-                                  </div>
-                                ) : user.subscription?.plan === 'Standard' && user.subscription?.credits > 0 ? (
-                                  <div className="inline-flex items-center px-3 py-1 bg-orange-500 text-white rounded-full text-xs font-bold border border-orange-600 shadow-sm">
-                                    <Zap className="w-3 h-3 text-white mr-1.5" />
-                                    Standard Available
-                                  </div>
-                                ) : (
-                                  <div className="inline-flex items-center px-3 py-1 bg-gray-100 rounded-full text-xs font-medium text-gray-700 border border-gray-200">
-                                    <Clock className="w-3 h-3 text-blue-500 mr-1.5" />
-                                    {user.subscription?.freeReportDate &&
-                                      new Date(user.subscription.freeReportDate).getMonth() === new Date().getMonth() &&
-                                      new Date(user.subscription.freeReportDate).getFullYear() === new Date().getFullYear()
-                                      ? 'Monthly Free Report Used'
-                                      : 'Free Report Available'}
-                                  </div>
-                                )}
-                              </>
-                            )}
+                        <div className="flex gap-2 justify-end">
+                          <div className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold shadow-sm ${activeTierBadgeClass}`}>
+                            <ActiveTierIcon className={`mr-1.5 h-3 w-3 ${activeTierIsPremium ? 'text-yellow-400' : activeTierBadge.kind === 'free' || activeTierBadge.kind === 'guest' ? 'text-blue-500' : 'text-white'}`} />
+                            {activeTierBadge.label}
                           </div>
-                        )}
+                        </div>
                       </div>
                     </div>
 
@@ -1388,7 +1441,7 @@ WARRANTY: 6 years on workmanship`
                                 <Upload className="w-8 h-8 text-orange-500" />
                               </div>
                               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                                {isAuthenticated && user?.subscription?.plan === 'Premium' ? 'Compare 2-3 Quotes' : 'Upload Your Quote'}
+                                {canCompareMultipleQuotes ? 'Compare 2-3 Quotes' : 'Upload Your Quote'}
                               </h3>
                               <p className="text-gray-600 mb-4">
                                 PDF or Images (JPG, PNG) • Max 10MB
@@ -1400,7 +1453,7 @@ WARRANTY: 6 years on workmanship`
                                 }}
                                 className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-lg font-semibold hover:shadow-lg hover:shadow-orange-500/30 transition-all"
                               >
-                                {isAuthenticated && user?.subscription?.plan === 'Premium' ? 'Select Quotes' : 'Choose Quote File'}
+                                {canCompareMultipleQuotes ? 'Select Quotes' : 'Choose Quote File'}
                               </button>
                               <p className="text-sm text-gray-500 mt-3">
                                 or drag and drop file here
@@ -1410,7 +1463,7 @@ WARRANTY: 6 years on workmanship`
                           <input
                             ref={fileInputRef}
                             type="file"
-                            multiple={isAuthenticated && user?.subscription?.plan === 'Premium'}
+                            multiple={canCompareMultipleQuotes}
                             accept=".pdf,image/jpeg,image/png,image/webp"
                             onChange={handleFileUpload}
                             className="hidden"
@@ -1559,7 +1612,7 @@ WARRANTY: 6 years on workmanship`
                     <div className="mt-8 pt-6 border-t border-gray-200">
                       <div className="text-center">
                         <p className="text-sm text-gray-500">
-                          This analysis uses {user?.subscription?.plan === 'Standard' ? 'advanced' : 'basic'} AI processing
+                          This analysis uses {usesAdvancedProcessing ? 'advanced' : 'basic'} AI processing
                         </p>
                         <div className="flex justify-center gap-4 mt-4">
                           <div className="text-center">
@@ -1625,7 +1678,7 @@ WARRANTY: 6 years on workmanship`
                         )}
                         <AnalysisResults
                           jobResult={jobResult}
-                          userTier={isAuthenticated ? (user?.subscription?.plan?.toLowerCase() || 'free') : 'free'}
+                          userTier={resolvedPlanLower}
                           onCompare={handleStartComparison}
                         />
                       </div>
@@ -1724,16 +1777,16 @@ WARRANTY: 6 years on workmanship`
         isOpen={showMainAuthModal}
         onClose={() => setShowMainAuthModal(false)}
         initialMode="signup"
-        initialData={{ phone: verifiedPhone }} // Pre-fill phone
+        initialData={{ phone: verifiedPhone, isPhoneVerified: true, phoneLocked: true }}
         onSuccess={handleMainAuthSuccess}
         login={login}
         signup={signup}
         loading={authLoading}
         error={authError}
         clearError={clearError}
+        allowOtpStep={false}
         verifyOtpDuringLogin={verifyOtpDuringLogin}
       />
-
 
       {/* Limit Reached Modal */}
       {showLimitModal && (
